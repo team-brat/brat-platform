@@ -6,4 +6,171 @@ Parameters:
     Description: Environment type
     Type: String
     Default: dev
-# (앞서 제공한 YAML 내용으로 채우기)
+    AllowedValues:
+      - dev
+      - test
+      - prod
+
+Resources:
+  # 문서 저장을 위한 S3 버킷
+  DocumentBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "wms-documents-${EnvironmentType}-${AWS::AccountId}"
+      VersioningConfiguration:
+        Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: ArchiveRule
+            Status: Enabled
+            Transitions:
+              - TransitionInDays: 90
+                StorageClass: GLACIER
+  
+  # 문서 메타데이터 DynamoDB 테이블
+  DocumentMetadataTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "wms-document-metadata-${EnvironmentType}"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: document_id
+          AttributeType: S
+        - AttributeName: timestamp
+          AttributeType: N
+        - AttributeName: document_type
+          AttributeType: S
+      KeySchema:
+        - AttributeName: document_id
+          KeyType: HASH
+        - AttributeName: timestamp
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: type-time-index
+          KeySchema:
+            - AttributeName: document_type
+              KeyType: HASH
+            - AttributeName: timestamp
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+  
+  # 재고 정보 DynamoDB 테이블
+  InventoryTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "wms-inventory-${EnvironmentType}"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: product_id
+          AttributeType: S
+        - AttributeName: warehouse_id
+          AttributeType: S
+        - AttributeName: bin_location
+          AttributeType: S
+        - AttributeName: status
+          AttributeType: S
+      KeySchema:
+        - AttributeName: product_id
+          KeyType: HASH
+        - AttributeName: warehouse_id
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: location-index
+          KeySchema:
+            - AttributeName: bin_location
+              KeyType: HASH
+            - AttributeName: product_id
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+        - IndexName: status-index
+          KeySchema:
+            - AttributeName: status
+              KeyType: HASH
+            - AttributeName: warehouse_id
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+  
+  # 배포 패키지 저장을 위한 S3 버킷
+  DeploymentBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "wms-deployment-${EnvironmentType}-${AWS::AccountId}"
+      VersioningConfiguration:
+        Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  # 웹 프론트엔드 호스팅을 위한 S3 버킷
+  WebsiteBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "wms-website-${EnvironmentType}-${AWS::AccountId}"
+      WebsiteConfiguration:
+        IndexDocument: index.html
+        ErrorDocument: error.html
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+
+  # 웹 버킷에 대한 공개 액세스 정책
+  WebsiteBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref WebsiteBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: '*'
+            Action: 's3:GetObject'
+            Resource: !Sub "arn:aws:s3:::${WebsiteBucket}/*"
+
+Outputs:
+  DocumentBucketName:
+    Description: Name of the document S3 bucket
+    Value: !Ref DocumentBucket
+    Export:
+      Name: !Sub "${AWS::StackName}-DocumentBucketName"
+  
+  DocumentMetadataTableName:
+    Description: Name of the document metadata DynamoDB table
+    Value: !Ref DocumentMetadataTable
+    Export:
+      Name: !Sub "${AWS::StackName}-DocumentMetadataTableName"
+  
+  InventoryTableName:
+    Description: Name of the inventory DynamoDB table
+    Value: !Ref InventoryTable
+    Export:
+      Name: !Sub "${AWS::StackName}-InventoryTableName"
+  
+  DeploymentBucketName:
+    Description: Name of the deployment S3 bucket
+    Value: !Ref DeploymentBucket
+    Export:
+      Name: !Sub "${AWS::StackName}-DeploymentBucketName"
+  
+  WebsiteBucketName:
+    Description: Name of the website S3 bucket
+    Value: !Ref WebsiteBucket
+    Export:
+      Name: !Sub "${AWS::StackName}-WebsiteBucketName"
+  
+  WebsiteURL:
+    Description: URL of the S3 website
+    Value: !GetAtt WebsiteBucket.WebsiteURL
+    Export:
+      Name: !Sub "${AWS::StackName}-WebsiteURL"

@@ -1,0 +1,30 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      python: 3.9
+    commands:
+      - echo Installing dependencies...
+      - pip install -r src/functions/document-service/requirements.txt -t ./package
+  
+  build:
+    commands:
+      - echo Packaging Lambda functions...
+      - mkdir -p deployment
+      - cd package
+      - cp -r ../src/functions/document-service/* .
+      - zip -r ../deployment/document-service-deployment-package.zip .
+      - cd ..
+  
+  post_build:
+    commands:
+      - echo Build completed on `date`
+      - aws s3 cp deployment/document-service-deployment-package.zip s3://${DEPLOYMENT_BUCKET}/${ENVIRONMENT_TYPE}/document-service/deployment-package.zip
+      - aws cloudformation package --template-file infrastructure/wms-service-stack.yaml --s3-bucket ${DEPLOYMENT_BUCKET} --output-template-file packaged.yaml
+
+artifacts:
+  files:
+    - packaged.yaml
+    - infrastructure/wms-service-stack.yaml
+    - appspec.yml

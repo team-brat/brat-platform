@@ -1,6 +1,16 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: 'WMS Base Infrastructure'
 
+Parameters:
+  EnvironmentType:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - test
+      - prod
+    Description: Environment type
+
 Resources:
   # VPC 생성
   WMSVPC:
@@ -11,5 +21,182 @@ Resources:
       EnableDnsHostnames: true
       Tags:
         - Key: Name
-          Value: wms-vpc
-# (앞서 제공한 YAML 내용으로 채우기)
+          Value: !Sub "wms-vpc-${EnvironmentType}"
+
+  # 인터넷 게이트웨이 생성
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub "wms-igw-${EnvironmentType}"
+
+  # 인터넷 게이트웨이와 VPC 연결
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref WMSVPC
+      InternetGatewayId: !Ref InternetGateway
+
+  # 퍼블릭 서브넷 생성 (가용 영역 A)
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref WMSVPC
+      AvailabilityZone: !Select [0, !GetAZs '']
+      CidrBlock: 10.0.1.0/24
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub "wms-public-subnet-1-${EnvironmentType}"
+
+  # 퍼블릭 서브넷 생성 (가용 영역 B)
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref WMSVPC
+      AvailabilityZone: !Select [1, !GetAZs '']
+      CidrBlock: 10.0.2.0/24
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub "wms-public-subnet-2-${EnvironmentType}"
+
+  # 프라이빗 서브넷 생성 (가용 영역 A)
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref WMSVPC
+      AvailabilityZone: !Select [0, !GetAZs '']
+      CidrBlock: 10.0.3.0/24
+      Tags:
+        - Key: Name
+          Value: !Sub "wms-private-subnet-1-${EnvironmentType}"
+
+  # 프라이빗 서브넷 생성 (가용 영역 B)
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref WMSVPC
+      AvailabilityZone: !Select [1, !GetAZs '']
+      CidrBlock: 10.0.4.0/24
+      Tags:
+        - Key: Name
+          Value: !Sub "wms-private-subnet-2-${EnvironmentType}"
+
+  # 퍼블릭 라우팅 테이블
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref WMSVPC
+      Tags:
+        - Key: Name
+          Value: !Sub "wms-public-rtb-${EnvironmentType}"
+
+  # 인터넷 게이트웨이로의 라우트
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: VPCGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  # 퍼블릭 서브넷과 라우팅 테이블 연결
+  PublicSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet1
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet2
+      RouteTableId: !Ref PublicRouteTable
+
+  # 프라이빗 라우팅 테이블
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref WMSVPC
+      Tags:
+        - Key: Name
+          Value: !Sub "wms-private-rtb-${EnvironmentType}"
+
+  # 프라이빗 서브넷과 라우팅 테이블 연결
+  PrivateSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet1
+      RouteTableId: !Ref PrivateRouteTable
+
+  PrivateSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet2
+      RouteTableId: !Ref PrivateRouteTable
+
+  # Lambda용 보안 그룹
+  LambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for Lambda functions in VPC
+      VpcId: !Ref WMSVPC
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Sub "wms-lambda-sg-${EnvironmentType}"
+
+  # API Gateway용 Cloud Watch 로그 그룹
+  APIGatewayLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/apigateway/wms-api-${EnvironmentType}"
+      RetentionInDays: 30
+
+  # Lambda용 Cloud Watch 로그 그룹
+  LambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/wms-functions-${EnvironmentType}"
+      RetentionInDays: 30
+
+Outputs:
+  VpcId:
+    Description: ID of the VPC
+    Value: !Ref WMSVPC
+    Export:
+      Name: !Sub "${AWS::StackName}-VpcId"
+
+  PublicSubnet1Id:
+    Description: ID of the first public subnet
+    Value: !Ref PublicSubnet1
+    Export:
+      Name: !Sub "${AWS::StackName}-PublicSubnet1Id"
+
+  PublicSubnet2Id:
+    Description: ID of the second public subnet
+    Value: !Ref PublicSubnet2
+    Export:
+      Name: !Sub "${AWS::StackName}-PublicSubnet2Id"
+
+  PrivateSubnet1Id:
+    Description: ID of the first private subnet
+    Value: !Ref PrivateSubnet1
+    Export:
+      Name: !Sub "${AWS::StackName}-PrivateSubnet1Id"
+
+  PrivateSubnet2Id:
+    Description: ID of the second private subnet
+    Value: !Ref PrivateSubnet2
+    Export:
+      Name: !Sub "${AWS::StackName}-PrivateSubnet2Id"
+
+  LambdaSecurityGroupId:
+    Description: ID of the security group for Lambda functions
+    Value: !GetAtt LambdaSecurityGroup.GroupId
+    Export:
+      Name: !Sub "${AWS::StackName}-LambdaSecurityGroupId"

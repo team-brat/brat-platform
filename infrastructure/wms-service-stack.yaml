@@ -1,0 +1,143 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'WMS Backend Services Stack'
+
+Parameters:
+  EnvironmentType:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - test
+      - prod
+    Description: Environment type
+  
+  DocumentBucketName:
+    Type: String
+    Description: Name of the S3 bucket for documents
+  
+  DocumentMetadataTableName:
+    Type: String
+    Description: Name of the DynamoDB table for document metadata
+  
+  DeploymentBucketName:
+    Type: String
+    Description: Name of the S3 bucket for deployment packages
+
+Resources:
+  # 문서 처리 Lambda 함수
+  DocumentServiceFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "wms-document-service-${EnvironmentType}"
+      Runtime: python3.9
+      Handler: handler.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 30
+      MemorySize: 256
+      Code:
+        S3Bucket: !Ref DeploymentBucketName
+        S3Key: !Sub "${EnvironmentType}/document-service/deployment-package.zip"
+      Environment:
+        Variables:
+          DOCUMENT_BUCKET: !Ref DocumentBucketName
+          METADATA_TABLE: !Ref DocumentMetadataTableName
+
+  # 빈 관리 Lambda 함수
+  BinServiceFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "wms-bin-service-${EnvironmentType}"
+      Runtime: python3.9
+      Handler: handler.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 30
+      MemorySize: 256
+      Code:
+        S3Bucket: !Ref DeploymentBucketName
+        S3Key: !Sub "${EnvironmentType}/bin-service/deployment-package.zip"
+      Environment:
+        Variables:
+          INVENTORY_TABLE: !Sub "wms-inventory-${EnvironmentType}"
+
+  # Lambda 실행 역할
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
+
+  # API Gateway REST API
+  WMSAPI:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: !Sub "wms-api-${EnvironmentType}"
+      Description: WMS API for document and bin management
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+
+  # 문서 리소스 및 메서드
+  DocumentsResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref WMSAPI
+      ParentId: !GetAtt WMSAPI.RootResourceId
+      PathPart: "documents"
+
+  DocumentsPostMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref WMSAPI
+      ResourceId: !Ref DocumentsResource
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${DocumentServiceFunction.Arn}/invocations"
+
+  # API Gateway 배포
+  APIDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - DocumentsPostMethod
+    Properties:
+      RestApiId: !Ref WMSAPI
+      StageName: !Ref EnvironmentType
+
+  # Lambda 함수에 API Gateway 권한 부여
+  DocumentServicePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref DocumentServiceFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WMSAPI}/*"
+
+Outputs:
+  DocumentServiceFunctionArn:
+    Description: ARN of the Document Service Lambda Function
+    Value: !GetAtt DocumentServiceFunction.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-DocumentServiceFunctionArn"
+
+  BinServiceFunctionArn:
+    Description: ARN of the Bin Service Lambda Function
+    Value: !GetAtt BinServiceFunction.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-BinServiceFunctionArn"
+
+  ApiEndpoint:
+    Description: URL of the WMS API
+    Value: !Sub "https://${WMSAPI}.execute-api.${AWS::Region}.amazonaws.com/${EnvironmentType}"
+    Export:
+      Name: !Sub "${AWS::StackName}-ApiEndpoint"
