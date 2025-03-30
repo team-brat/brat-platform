@@ -1,0 +1,15 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'WMS Base Infrastructure'
+
+Resources:
+  # VPC 생성
+  WMSVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: wms-vpc
+# (앞서 제공한 YAML 내용으로 채우기)
