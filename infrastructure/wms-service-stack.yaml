@@ -10,18 +10,6 @@ Parameters:
       - test
       - prod
     Description: Environment type
-  
-  DocumentBucketName:
-    Type: String
-    Description: Name of the S3 bucket for documents
-  
-  DocumentMetadataTableName:
-    Type: String
-    Description: Name of the DynamoDB table for document metadata
-  
-  DeploymentBucketName:
-    Type: String
-    Description: Name of the S3 bucket for deployment packages
 
 Resources:
   # 문서 처리 Lambda 함수
@@ -35,12 +23,12 @@ Resources:
       Timeout: 30
       MemorySize: 256
       Code:
-        S3Bucket: !Ref DeploymentBucketName
+        S3Bucket: !ImportValue 'wms-storage-stack-DeploymentBucketName'
         S3Key: !Sub "${EnvironmentType}/document-service/deployment-package.zip"
       Environment:
         Variables:
-          DOCUMENT_BUCKET: !Ref DocumentBucketName
-          METADATA_TABLE: !Ref DocumentMetadataTableName
+          DOCUMENT_BUCKET: !ImportValue 'wms-storage-stack-DocumentBucketName'
+          METADATA_TABLE: !ImportValue 'wms-storage-stack-DocumentMetadataTableName'
 
   # 빈 관리 Lambda 함수
   BinServiceFunction:
@@ -53,11 +41,11 @@ Resources:
       Timeout: 30
       MemorySize: 256
       Code:
-        S3Bucket: !Ref DeploymentBucketName
+        S3Bucket: !ImportValue 'wms-storage-stack-DeploymentBucketName'
         S3Key: !Sub "${EnvironmentType}/bin-service/deployment-package.zip"
       Environment:
         Variables:
-          INVENTORY_TABLE: !Sub "wms-inventory-${EnvironmentType}"
+          INVENTORY_TABLE: !ImportValue 'wms-storage-stack-InventoryTableName'
 
   # Lambda 실행 역할
   LambdaExecutionRole:
