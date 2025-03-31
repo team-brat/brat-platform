@@ -6,21 +6,32 @@ phases:
       python: 3.9
     commands:
       - echo Installing dependencies...
-      - pip install -r src/functions/document-service/requirements.txt -t ./package
+      - pip install -r src/functions/document-service/requirements.txt -t ./document-package
+      - pip install -r src/functions/bin-service/requirements.txt -t ./bin-package
   
   build:
     commands:
       - echo Packaging Lambda functions...
       - mkdir -p deployment
-      - cd package
+      
+      # Document Service 패키징
+      - cd document-package
       - cp -r ../src/functions/document-service/* .
       - zip -r ../deployment/document-service-deployment-package.zip .
+      - cd ..
+      
+      # Bin Service 패키징
+      - cd bin-package
+      - cp -r ../src/functions/bin-service/* .
+      - zip -r ../deployment/bin-service-deployment-package.zip .
       - cd ..
   
   post_build:
     commands:
       - echo Build completed on `date`
+      - echo "DEPLOYMENT_BUCKET=${DEPLOYMENT_BUCKET}, ENVIRONMENT_TYPE=${ENVIRONMENT_TYPE}"
       - aws s3 cp deployment/document-service-deployment-package.zip s3://${DEPLOYMENT_BUCKET}/${ENVIRONMENT_TYPE}/document-service/deployment-package.zip
+      - aws s3 cp deployment/bin-service-deployment-package.zip s3://${DEPLOYMENT_BUCKET}/${ENVIRONMENT_TYPE}/bin-service/deployment-package.zip
       - aws cloudformation package --template-file infrastructure/wms-service-stack.yaml --s3-bucket ${DEPLOYMENT_BUCKET} --output-template-file packaged.yaml
 
 artifacts:
