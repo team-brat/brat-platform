@@ -16,7 +16,22 @@ METADATA_TABLE = os.environ.get('METADATA_TABLE')
 def lambda_handler(event, context):
     """문서 처리 Lambda 핸들러"""
     try:
+
         print(f"Received event: {json.dumps(event)}")
+        print(f"Event keys: {list(event.keys())}")
+        # 이벤트에 httpMethod가 있는지 확인
+        has_http_method = 'httpMethod' in event
+        print(f"Has httpMethod: {has_http_method}")
+        
+        # httpMethod가 있을 경우 관련 정보 출력
+        if has_http_method:
+            http_method = event.get('httpMethod')
+            path = event.get('path', '')
+            path_params = event.get('pathParameters', {}) or {}
+            
+            print(f"HTTP Method: {http_method}")
+            print(f"Path: {path}")
+            print(f"Path Parameters: {path_params}")
         
         # API Gateway 프록시 통합
         if 'httpMethod' in event:
