@@ -22,7 +22,7 @@ phases:
       - cd ..
 
       # Bin Service
-      - cp src/functions/bin-service/handler.py ./document-package/
+      - cp src/functions/bin-service/handler.py ./bin-package/
       - cd bin-package
       - zip -r ../deployment/bin-service-deployment-package.zip .
       - cd ..
