@@ -153,13 +153,14 @@ Resources:
   # API Gateway용 Cloud Watch 로그 그룹
   APIGatewayLogGroup:
     Type: AWS::Logs::LogGroup
+    DeletionPolicy: Retain  # 스택 삭제 시 리소스 유지
     Properties:
       LogGroupName: !Sub "/aws/apigateway/wms-api-${EnvironmentType}"
       RetentionInDays: 30
 
-  # Lambda용 Cloud Watch 로그 그룹
   LambdaLogGroup:
     Type: AWS::Logs::LogGroup
+    DeletionPolicy: Retain  # 스택 삭제 시 리소스 유지
     Properties:
       LogGroupName: !Sub "/aws/lambda/wms-functions-${EnvironmentType}"
       RetentionInDays: 30
