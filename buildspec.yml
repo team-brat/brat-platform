@@ -44,6 +44,9 @@ phases:
       - aws s3 cp deployment/document-service-deployment-package.zip s3://${DEPLOYMENT_BUCKET}/${ENVIRONMENT_TYPE}/document-service/deployment-package.zip --acl private
       - aws s3 cp deployment/bin-service-deployment-package.zip s3://${DEPLOYMENT_BUCKET}/${ENVIRONMENT_TYPE}/bin-service/deployment-package.zip --acl private
       - echo "Files uploaded to S3"
+      - aws lambda update-function-code --function-name wms-document-service-${ENVIRONMENT_TYPE} --s3-bucket ${DEPLOYMENT_BUCKET} --s3-key ${ENVIRONMENT_TYPE}/document-service/deployment-package.zip
+      - aws lambda update-function-code --function-name wms-bin-service-${ENVIRONMENT_TYPE} --s3-bucket ${DEPLOYMENT_BUCKET} --s3-key ${ENVIRONMENT_TYPE}/bin-service/deployment-package.zip
+      - echo "Lambda functions updated directly via AWS CLI"
 
 artifacts:
   files:
