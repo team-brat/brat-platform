@@ -9,14 +9,13 @@ phases:
       - mkdir -p document-package bin-package
       - pip install -r src/functions/document-service/requirements.txt -t ./document-package || echo "No requirements.txt found"
       - pip install -r src/functions/bin-service/requirements.txt -t ./bin-package || echo "No requirements.txt found"
-  
+
   build:
     commands:
       - echo Packaging Lambda functions...
       - mkdir -p deployment
-      - echo "Creating a basic handler.py file for Lambda functions"
       
-      # Document Service 패키징
+      # Document Service
       - |
         cat > ./document-package/handler.py << 'EOL'
         def lambda_handler(event, context):
@@ -25,8 +24,8 @@ phases:
       - cd document-package
       - zip -r ../deployment/document-service-deployment-package.zip .
       - cd ..
-      
-      # Bin Service 패키징
+
+      # Bin Service
       - |
         cat > ./bin-package/handler.py << 'EOL'
         def lambda_handler(event, context):
@@ -35,11 +34,11 @@ phases:
       - cd bin-package
       - zip -r ../deployment/bin-service-deployment-package.zip .
       - cd ..
-  
+
   post_build:
     commands:
-      - echo Build completed on `date`
-      - echo "Deploying to bucket: ${DEPLOYMENT_BUCKET}, environment: ${ENVIRONMENT_TYPE}"
+      - echo "Build completed on `date`"
+      - echo 'Deploying to bucket: ${DEPLOYMENT_BUCKET}, environment: ${ENVIRONMENT_TYPE}'
       - ls -la deployment/
       - aws s3 cp deployment/document-service-deployment-package.zip s3://${DEPLOYMENT_BUCKET}/${ENVIRONMENT_TYPE}/document-service/deployment-package.zip --acl private
       - aws s3 cp deployment/bin-service-deployment-package.zip s3://${DEPLOYMENT_BUCKET}/${ENVIRONMENT_TYPE}/bin-service/deployment-package.zip --acl private
