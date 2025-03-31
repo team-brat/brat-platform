@@ -97,23 +97,34 @@ def lambda_handler(event, context):
             'body': json.dumps({'message': f"Error: {str(e)}"}, cls=DecimalEncoder)
         }
 
-def get_documents(event):
-    """문서 목록 조회"""
+def get_document(document_id):
+    """특정 문서 조회"""
     try:
-        query_params = event.get('queryStringParameters', {}) or {}
-        doc_type = query_params.get('type')
-        
         table = dynamodb.Table(METADATA_TABLE)
         
-        if doc_type:
-            # 문서 유형별 필터링
-            response = table.scan(
-                FilterExpression="document_type = :dtype",
-                ExpressionAttributeValues={':dtype': doc_type}
+        # document_id로 쿼리 실행 (복합 키를 고려)
+        response = table.query(
+            KeyConditionExpression=boto3.dynamodb.conditions.Key('document_id').eq(document_id)
+        )
+        
+        if not response.get('Items'):
+            return {
+                'statusCode': 404,
+                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'body': json.dumps({'message': 'Document not found'}, cls=DecimalEncoder)
+            }
+        
+        # 가장 최근 항목 선택 (timestamp 기준)
+        document = sorted(response['Items'], key=lambda x: x.get('timestamp', 0), reverse=True)[0]
+        
+        # S3 미리 서명된 URL 생성 (30분 유효)
+        if 's3_path' in document:
+            presigned_url = s3.generate_presigned_url(
+                'get_object',
+                Params={'Bucket': DOCUMENT_BUCKET, 'Key': document['s3_path']},
+                ExpiresIn=1800
             )
-        else:
-            # 전체 문서 조회
-            response = table.scan()
+            document['download_url'] = presigned_url
         
         return {
             'statusCode': 200,
@@ -121,16 +132,16 @@ def get_documents(event):
                 'Content-Type': 'application/json',
                 'Access-Control-Allow-Origin': '*'
             },
-            'body': json.dumps({'documents': response.get('Items', [])}, cls=DecimalEncoder)
+            'body': json.dumps(document, cls=DecimalEncoder)
         }
     except Exception as e:
-        print(f"Error getting documents: {str(e)}")
+        print(f"Error getting document: {str(e)}")
         return {
             'statusCode': 500,
             'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-            'body': json.dumps({'message': f"Error getting documents: {str(e)}"}, cls=DecimalEncoder)
+            'body': json.dumps({'message': f"Error getting document: {str(e)}"}, cls=DecimalEncoder)
         }
-
+        
 def get_document(document_id):
     """특정 문서 조회"""
     try:
