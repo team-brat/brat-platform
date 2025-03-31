@@ -4,10 +4,18 @@ import os
 import uuid
 from datetime import datetime
 import base64
+from decimal import Decimal  # Decimal import 추가
 
 # AWS 서비스 클라이언트
 s3 = boto3.client('s3')
 dynamodb = boto3.resource('dynamodb')
+
+# JSON 인코더 클래스 정의
+class DecimalEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, Decimal):
+            return float(obj)  # Decimal을 float로 변환
+        return super(DecimalEncoder, self).default(obj)
 
 # 환경 변수
 DOCUMENT_BUCKET = os.environ.get('DOCUMENT_BUCKET')
@@ -16,7 +24,6 @@ METADATA_TABLE = os.environ.get('METADATA_TABLE')
 def lambda_handler(event, context):
     """문서 처리 Lambda 핸들러"""
     try:
-
         print(f"Received event: {json.dumps(event)}")
         print(f"Event keys: {list(event.keys())}")
         # 이벤트에 httpMethod가 있는지 확인
@@ -70,7 +77,7 @@ def lambda_handler(event, context):
                     'message': 'Endpoint not found',
                     'path': path,
                     'method': http_method
-                })
+                }, cls=DecimalEncoder)
             }
         
         # 직접 호출
@@ -79,7 +86,7 @@ def lambda_handler(event, context):
             'body': json.dumps({
                 'message': 'Document service executed directly',
                 'event': event
-            })
+            }, cls=DecimalEncoder)
         }
             
     except Exception as e:
@@ -87,7 +94,7 @@ def lambda_handler(event, context):
         return {
             'statusCode': 500,
             'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-            'body': json.dumps({'message': f"Error: {str(e)}"})
+            'body': json.dumps({'message': f"Error: {str(e)}"}, cls=DecimalEncoder)
         }
 
 def get_documents(event):
@@ -114,14 +121,14 @@ def get_documents(event):
                 'Content-Type': 'application/json',
                 'Access-Control-Allow-Origin': '*'
             },
-            'body': json.dumps({'documents': response.get('Items', [])})
+            'body': json.dumps({'documents': response.get('Items', [])}, cls=DecimalEncoder)
         }
     except Exception as e:
         print(f"Error getting documents: {str(e)}")
         return {
             'statusCode': 500,
             'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-            'body': json.dumps({'message': f"Error getting documents: {str(e)}"})
+            'body': json.dumps({'message': f"Error getting documents: {str(e)}"}, cls=DecimalEncoder)
         }
 
 def get_document(document_id):
@@ -134,7 +141,7 @@ def get_document(document_id):
             return {
                 'statusCode': 404,
                 'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-                'body': json.dumps({'message': 'Document not found'})
+                'body': json.dumps({'message': 'Document not found'}, cls=DecimalEncoder)
             }
         
         document = response['Item']
@@ -154,14 +161,14 @@ def get_document(document_id):
                 'Content-Type': 'application/json',
                 'Access-Control-Allow-Origin': '*'
             },
-            'body': json.dumps(document)
+            'body': json.dumps(document, cls=DecimalEncoder)
         }
     except Exception as e:
         print(f"Error getting document: {str(e)}")
         return {
             'statusCode': 500,
             'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-            'body': json.dumps({'message': f"Error getting document: {str(e)}"})
+            'body': json.dumps({'message': f"Error getting document: {str(e)}"}, cls=DecimalEncoder)
         }
 
 def create_document(event):
@@ -175,7 +182,7 @@ def create_document(event):
             return {
                 'statusCode': 400,
                 'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-                'body': json.dumps({'message': 'Title is required'})
+                'body': json.dumps({'message': 'Title is required'}, cls=DecimalEncoder)
             }
             
         document_id = str(uuid.uuid4())
@@ -204,14 +211,14 @@ def create_document(event):
             'body': json.dumps({
                 'document_id': document_id,
                 'message': 'Document metadata created successfully'
-            })
+            }, cls=DecimalEncoder)
         }
     except Exception as e:
         print(f"Error creating document: {str(e)}")
         return {
             'statusCode': 500,
             'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-            'body': json.dumps({'message': f"Error creating document: {str(e)}"})
+            'body': json.dumps({'message': f"Error creating document: {str(e)}"}, cls=DecimalEncoder)
         }
 
 def upload_document(event):
@@ -226,7 +233,7 @@ def upload_document(event):
             return {
                 'statusCode': 400,
                 'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-                'body': json.dumps({'message': 'File content and filename are required'})
+                'body': json.dumps({'message': 'File content and filename are required'}, cls=DecimalEncoder)
             }
         
         # Base64 디코딩
@@ -241,7 +248,7 @@ def upload_document(event):
             return {
                 'statusCode': 400,
                 'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-                'body': json.dumps({'message': f'Invalid file content: {str(e)}'})
+                'body': json.dumps({'message': f'Invalid file content: {str(e)}'}, cls=DecimalEncoder)
             }
         
         # 신규 업로드면 ID 생성
@@ -285,7 +292,7 @@ def upload_document(event):
                 return {
                     'statusCode': 404,
                     'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-                    'body': json.dumps({'message': 'Document not found'})
+                    'body': json.dumps({'message': 'Document not found'}, cls=DecimalEncoder)
                 }
                 
             item = response['Item']
@@ -321,14 +328,14 @@ def upload_document(event):
             'body': json.dumps({
                 'document_id': document_id,
                 'message': 'Document uploaded successfully'
-            })
+            }, cls=DecimalEncoder)
         }
     except Exception as e:
         print(f"Error uploading document: {str(e)}")
         return {
             'statusCode': 500,
             'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-            'body': json.dumps({'message': f"Error uploading document: {str(e)}"})
+            'body': json.dumps({'message': f"Error uploading document: {str(e)}"}, cls=DecimalEncoder)
         }
 
 def delete_document(document_id):
@@ -341,7 +348,7 @@ def delete_document(document_id):
             return {
                 'statusCode': 404,
                 'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-                'body': json.dumps({'message': 'Document not found'})
+                'body': json.dumps({'message': 'Document not found'}, cls=DecimalEncoder)
             }
             
         item = response['Item']
@@ -367,14 +374,14 @@ def delete_document(document_id):
                 'Content-Type': 'application/json',
                 'Access-Control-Allow-Origin': '*'
             },
-            'body': json.dumps({'message': 'Document deleted successfully'})
+            'body': json.dumps({'message': 'Document deleted successfully'}, cls=DecimalEncoder)
         }
     except Exception as e:
         print(f"Error deleting document: {str(e)}")
         return {
             'statusCode': 500,
             'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-            'body': json.dumps({'message': f"Error deleting document: {str(e)}"})
+            'body': json.dumps({'message': f"Error deleting document: {str(e)}"}, cls=DecimalEncoder)
         }
 
 def get_content_type(filename):
