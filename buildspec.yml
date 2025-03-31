@@ -16,21 +16,13 @@ phases:
       - mkdir -p deployment
       
       # Document Service
-      - |
-        cat > ./document-package/handler.py << 'EOL'
-        def lambda_handler(event, context):
-            return {"statusCode": 200, "body": "Hello from Document Service"}
-        EOL
+      - cp src/functions/document-service/handler.py ./document-package/
       - cd document-package
       - zip -r ../deployment/document-service-deployment-package.zip .
       - cd ..
 
       # Bin Service
-      - |
-        cat > ./bin-package/handler.py << 'EOL'
-        def lambda_handler(event, context):
-            return {"statusCode": 200, "body": "Hello from Bin Service"}
-        EOL
+      - cp src/functions/bin-service/handler.py ./document-package/
       - cd bin-package
       - zip -r ../deployment/bin-service-deployment-package.zip .
       - cd ..
