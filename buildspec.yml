@@ -37,8 +37,6 @@ phases:
 
   post_build:
     commands:
-      - echo "Build completed on $(date)"
-      - echo "Deploying to bucket: ${DEPLOYMENT_BUCKET}, environment: ${ENVIRONMENT_TYPE}"
       - ls -la deployment/
       - aws s3 cp deployment/document-service-deployment-package.zip s3://${DEPLOYMENT_BUCKET}/${ENVIRONMENT_TYPE}/document-service/deployment-package.zip --acl private
       - aws s3 cp deployment/bin-service-deployment-package.zip s3://${DEPLOYMENT_BUCKET}/${ENVIRONMENT_TYPE}/bin-service/deployment-package.zip --acl private
