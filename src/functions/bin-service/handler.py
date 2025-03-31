@@ -3,6 +3,8 @@ import boto3
 import os
 from datetime import datetime
 import uuid
+import base64
+from decimal import Decimal  # Decimal import 추가
 
 # AWS 서비스 클라이언트
 dynamodb = boto3.resource('dynamodb')
@@ -10,10 +12,19 @@ dynamodb = boto3.resource('dynamodb')
 # 환경 변수
 INVENTORY_TABLE = os.environ.get('INVENTORY_TABLE')
 
+
+# JSON 인코더 클래스 정의
+class DecimalEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, Decimal):
+            return float(obj)  # Decimal을 float로 변환
+        return super(DecimalEncoder, self).default(obj)
+
+
 def lambda_handler(event, context):
     """빈 관리 Lambda 핸들러"""
     try:
-        print(f"Received event: {json.dumps(event)}")
+        print(f"Received event: {json.dumps(event)}", cls=DecimalEncoder)
         
         # API Gateway 프록시 통합
         if 'httpMethod' in event:
@@ -56,7 +67,7 @@ def lambda_handler(event, context):
                     'message': 'Endpoint not found',
                     'path': path,
                     'method': http_method
-                })
+                }, cls=DecimalEncoder)
             }
         
         # 직접 호출
@@ -65,7 +76,7 @@ def lambda_handler(event, context):
             'body': json.dumps({
                 'message': 'Bin service executed directly',
                 'event': event
-            })
+            }, cls=DecimalEncoder)
         }
             
     except Exception as e:
@@ -73,7 +84,7 @@ def lambda_handler(event, context):
         return {
             'statusCode': 500,
             'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-            'body': json.dumps({'message': f"Error: {str(e)}"})
+            'body': json.dumps({'message': f"Error: {str(e)}"}, cls=DecimalEncoder)
         }
 
 def get_bins(event):
@@ -122,14 +133,14 @@ def get_bins(event):
                 'Content-Type': 'application/json',
                 'Access-Control-Allow-Origin': '*'
             },
-            'body': json.dumps({'bins': bins})
+            'body': json.dumps({'bins': bins}, cls=DecimalEncoder)
         }
     except Exception as e:
         print(f"Error getting bins: {str(e)}")
         return {
             'statusCode': 500,
             'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-            'body': json.dumps({'message': f"Error getting bins: {str(e)}"})
+            'body': json.dumps({'message': f"Error getting bins: {str(e)}"}, cls=DecimalEncoder)
         }
 
 def get_bin(bin_id):
@@ -165,7 +176,7 @@ def get_bin(bin_id):
             return {
                 'statusCode': 404,
                 'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-                'body': json.dumps({'message': 'Bin not found'})
+                'body': json.dumps({'message': 'Bin not found'}, cls=DecimalEncoder)
             }
         
         return {
@@ -174,14 +185,14 @@ def get_bin(bin_id):
                 'Content-Type': 'application/json',
                 'Access-Control-Allow-Origin': '*'
             },
-            'body': json.dumps(bin_data)
+            'body': json.dumps(bin_data, cls=DecimalEncoder)
         }
     except Exception as e:
         print(f"Error getting bin: {str(e)}")
         return {
             'statusCode': 500,
             'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-            'body': json.dumps({'message': f"Error getting bin: {str(e)}"})
+            'body': json.dumps({'message': f"Error getting bin: {str(e)}"}, cls=DecimalEncoder)
         }
 
 def get_bin_status(event):
@@ -220,14 +231,14 @@ def get_bin_status(event):
                 'Content-Type': 'application/json',
                 'Access-Control-Allow-Origin': '*'
             },
-            'body': json.dumps({'status': status})
+            'body': json.dumps({'status': status}, cls=DecimalEncoder)
         }
     except Exception as e:
         print(f"Error getting bin status: {str(e)}")
         return {
             'statusCode': 500,
             'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-            'body': json.dumps({'message': f"Error getting bin status: {str(e)}"})
+            'body': json.dumps({'message': f"Error getting bin status: {str(e)}"}, cls=DecimalEncoder)
         }
 
 def create_bin(event):
@@ -243,7 +254,7 @@ def create_bin(event):
             return {
                 'statusCode': 400,
                 'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-                'body': json.dumps({'message': 'Zone, aisle, rack, and level are required'})
+                'body': json.dumps({'message': 'Zone, aisle, rack, and level are required'}, cls=DecimalEncoder)
             }
             
         # 빈 ID 생성
@@ -272,14 +283,14 @@ def create_bin(event):
             'body': json.dumps({
                 'bin': new_bin,
                 'message': 'Bin created successfully'
-            })
+            }, cls=DecimalEncoder)
         }
     except Exception as e:
         print(f"Error creating bin: {str(e)}")
         return {
             'statusCode': 500,
             'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-            'body': json.dumps({'message': f"Error creating bin: {str(e)}"})
+            'body': json.dumps({'message': f"Error creating bin: {str(e)}"}, cls=DecimalEncoder)
         }
 
 def update_bin(bin_id, event):
@@ -310,14 +321,14 @@ def update_bin(bin_id, event):
             'body': json.dumps({
                 'bin': updated_bin,
                 'message': 'Bin updated successfully'
-            })
+            }, cls=DecimalEncoder)
         }
     except Exception as e:
         print(f"Error updating bin: {str(e)}")
         return {
             'statusCode': 500,
             'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-            'body': json.dumps({'message': f"Error updating bin: {str(e)}"})
+            'body': json.dumps({'message': f"Error updating bin: {str(e)}"}, cls=DecimalEncoder)
         }
 
 def delete_bin(bin_id):
@@ -332,12 +343,12 @@ def delete_bin(bin_id):
                 'Content-Type': 'application/json',
                 'Access-Control-Allow-Origin': '*'
             },
-            'body': json.dumps({'message': 'Bin deleted successfully'})
+            'body': json.dumps({'message': 'Bin deleted successfully'}, cls=DecimalEncoder)
         }
     except Exception as e:
         print(f"Error deleting bin: {str(e)}")
         return {
             'statusCode': 500,
             'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-            'body': json.dumps({'message': f"Error deleting bin: {str(e)}"})
+            'body': json.dumps({'message': f"Error deleting bin: {str(e)}"}, cls=DecimalEncoder)
         }
