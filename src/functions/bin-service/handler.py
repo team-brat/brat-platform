@@ -1,108 +1,88 @@
-# src/functions/bin-service/handler.py
 import json
 import boto3
 import os
 from datetime import datetime
+import uuid
 
-# AWS 서비스 클라이언트
+# AWS 서비스 초기화
 dynamodb = boto3.resource('dynamodb')
 
 # 환경 변수
-INVENTORY_TABLE = os.environ.get('INVENTORY_TABLE', 'wms-inventory-dev')
+INVENTORY_TABLE = os.environ.get('INVENTORY_TABLE')
 
 def lambda_handler(event, context):
     """창고 빈 관리 Lambda 핸들러"""
     try:
-        # API Gateway에서 호출한 경우
-        if 'httpMethod' in event:
-            http_method = event['httpMethod']
-            path = event.get('path', '')
-            
-            # 빈 추천
-            if http_method == 'POST' and '/bins/recommend' in path:
-                body = json.loads(event.get('body', '{}'))
-                return recommend_bin(body)
-            
-            # 빈 상태 조회
-            elif http_method == 'GET' and '/bins/status' in path:
-                return get_bin_status(event)
-                
-            # 빈 할당 업데이트
-            elif http_method == 'PUT' and '/bins/' in path and '/assign' in path:
-                body = json.loads(event.get('body', '{}'))
-                bin_id = path.split('/')[2]  # /bins/{bin_id}/assign 형식에서 추출
-                return update_bin_assignment(bin_id, body)
+        # HTTP 메서드와 경로 파싱
+        http_method = event.get('httpMethod')
+        path = event.get('path', '')
+        
+        # 빈 목록 조회
+        if http_method == 'GET' and path.endswith('/bins'):
+            return get_bins(event)
+        
+        # 빈 상세 조회
+        elif http_method == 'GET' and '/bins/' in path and not path.endswith('/bins/'):
+            bin_id = path.split('/bins/')[1].split('/')[0]
+            return get_bin(bin_id)
+        
+        # 빈 생성
+        elif http_method == 'POST' and path.endswith('/bins'):
+            return create_bin(event)
+        
+        # 빈 할당 업데이트
+        elif http_method == 'PUT' and '/bins/' in path and '/assign' in path:
+            bin_id = path.split('/bins/')[1].split('/')[0]
+            return assign_bin(bin_id, event)
+        
+        # 빈 삭제
+        elif http_method == 'DELETE' and '/bins/' in path:
+            bin_id = path.split('/bins/')[1].split('/')[0]
+            return delete_bin(bin_id)
         
         return {
             'statusCode': 400,
-            'body': json.dumps({'message': 'Unsupported request'})
+            'headers': {'Content-Type': 'application/json'},
+            'body': json.dumps({'message': 'Unsupported operation'})
         }
             
     except Exception as e:
         print(f"Error: {str(e)}")
         return {
             'statusCode': 500,
+            'headers': {'Content-Type': 'application/json'},
             'body': json.dumps({'message': f"Error: {str(e)}"})
         }
 
-def recommend_bin(request_data):
-    """최적 빈 위치 추천"""
-    product_id = request_data.get('product_id')
-    quantity = request_data.get('quantity', 1)
+def get_bins(event):
+    """빈 목록 조회"""
+    table = dynamodb.Table(INVENTORY_TABLE)
     
-    # 간단한 추천 로직 - 실제로는 더 복잡한 알고리즘 적용 필요
-    # 여기서는 단순 예시로 고정 빈 반환
-    recommended_bins = [
-        {
-            'bin_id': 'A-01-02-03',
-            'zone': 'A',
-            'aisle': '01',
-            'rack': '02',
-            'level': '03',
-            'score': 0.92,
-            'reason': '상품 회전율과 접근성 기준 최적 위치'
-        }
-    ]
-    
-    return {
-        'statusCode': 200,
-        'headers': {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*'
-        },
-        'body': json.dumps({
-            'recommended_bins': recommended_bins,
-            'product_id': product_id,
-            'timestamp': int(datetime.now().timestamp())
-        })
-    }
-
-def get_bin_status(event):
-    """빈 상태 조회"""
-    # 쿼리 파라미터 추출
+    # 쿼리 파라미터 처리
     query_params = event.get('queryStringParameters', {}) or {}
-    zone = query_params.get('zone')
-    utilization = query_params.get('utilization')
+    filter_expr = None
+    expr_values = {}
     
-    # 여기서는 샘플 데이터 반환
-    bins = [
-        {
-            'bin_id': 'A-01-02-03',
-            'zone': 'A',
-            'status': 'OCCUPIED',
-            'product_id': 'PROD-12345',
-            'quantity': 5,
-            'last_updated': '2023-03-30T14:25:30Z'
-        },
-        {
-            'bin_id': 'A-01-02-04',
-            'zone': 'A',
-            'status': 'EMPTY',
-            'product_id': None,
-            'quantity': 0,
-            'last_updated': '2023-03-29T10:15:22Z'
-        }
-    ]
+    # 여러 필터 조건 구성
+    if query_params.get('zone'):
+        filter_expr = "bin_zone = :zone"
+        expr_values[":zone"] = query_params.get('zone')
+    
+    if query_params.get('status'):
+        if filter_expr:
+            filter_expr += " AND bin_status = :status"
+        else:
+            filter_expr = "bin_status = :status"
+        expr_values[":status"] = query_params.get('status')
+    
+    # 필터가 있으면 적용, 없으면 전체 스캔
+    if filter_expr:
+        response = table.scan(
+            FilterExpression=filter_expr,
+            ExpressionAttributeValues=expr_values
+        )
+    else:
+        response = table.scan()
     
     return {
         'statusCode': 200,
@@ -110,16 +90,20 @@ def get_bin_status(event):
             'Content-Type': 'application/json',
             'Access-Control-Allow-Origin': '*'
         },
-        'body': json.dumps({'bins': bins})
+        'body': json.dumps({'bins': response.get('Items', [])})
     }
 
-def update_bin_assignment(bin_id, request_data):
-    """빈 할당 업데이트"""
-    product_id = request_data.get('product_id')
-    quantity = request_data.get('quantity', 0)
+def get_bin(bin_id):
+    """빈 상세 조회"""
+    table = dynamodb.Table(INVENTORY_TABLE)
+    response = table.get_item(Key={'bin_id': bin_id})
     
-    # 실제로는 DynamoDB 업데이트 필요
-    # 여기서는 성공 응답만 반환
+    if 'Item' not in response:
+        return {
+            'statusCode': 404,
+            'headers': {'Content-Type': 'application/json'},
+            'body': json.dumps({'message': 'Bin not found'})
+        }
     
     return {
         'statusCode': 200,
@@ -127,11 +111,175 @@ def update_bin_assignment(bin_id, request_data):
             'Content-Type': 'application/json',
             'Access-Control-Allow-Origin': '*'
         },
-        'body': json.dumps({
-            'bin_id': bin_id,
-            'product_id': product_id,
-            'quantity': quantity,
-            'status': 'ASSIGNED',
-            'timestamp': int(datetime.now().timestamp())
-        })
+        'body': json.dumps(response['Item'])
     }
+
+def create_bin(event):
+    """빈 생성"""
+    try:
+        body = json.loads(event.get('body', '{}'))
+        zone = body.get('zone')
+        aisle = body.get('aisle')
+        rack = body.get('rack')
+        level = body.get('level')
+        
+        if not zone or not aisle or not rack or not level:
+            return {
+                'statusCode': 400,
+                'headers': {'Content-Type': 'application/json'},
+                'body': json.dumps({'message': 'Missing required bin attributes'})
+            }
+        
+        # 빈 ID 생성 (형식: ZONE-AISLE-RACK-LEVEL)
+        bin_id = f"{zone}-{aisle}-{rack}-{level}"
+        
+        # 이미 존재하는지 확인
+        table = dynamodb.Table(INVENTORY_TABLE)
+        response = table.get_item(Key={'bin_id': bin_id})
+        
+        if 'Item' in response:
+            return {
+                'statusCode': 409,
+                'headers': {'Content-Type': 'application/json'},
+                'body': json.dumps({'message': 'Bin already exists'})
+            }
+        
+        # 빈 추가
+        timestamp = int(datetime.now().timestamp())
+        table.put_item(
+            Item={
+                'bin_id': bin_id,
+                'bin_zone': zone,
+                'bin_aisle': aisle,
+                'bin_rack': rack,
+                'bin_level': level,
+                'bin_status': 'EMPTY',
+                'product_id': None,
+                'quantity': 0,
+                'created_at': timestamp,
+                'updated_at': timestamp
+            }
+        )
+        
+        return {
+            'statusCode': 201,
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            },
+            'body': json.dumps({
+                'bin_id': bin_id,
+                'message': 'Bin created successfully'
+            })
+        }
+    except Exception as e:
+        print(f"Create bin error: {str(e)}")
+        return {
+            'statusCode': 500,
+            'headers': {'Content-Type': 'application/json'},
+            'body': json.dumps({'message': f"Create bin error: {str(e)}"})
+        }
+
+def assign_bin(bin_id, event):
+    """빈 할당 업데이트"""
+    try:
+        body = json.loads(event.get('body', '{}'))
+        product_id = body.get('product_id')
+        quantity = body.get('quantity', 0)
+        
+        if product_id is None:
+            return {
+                'statusCode': 400,
+                'headers': {'Content-Type': 'application/json'},
+                'body': json.dumps({'message': 'Missing product_id'})
+            }
+        
+        # 빈 존재 확인
+        table = dynamodb.Table(INVENTORY_TABLE)
+        response = table.get_item(Key={'bin_id': bin_id})
+        
+        if 'Item' not in response:
+            return {
+                'statusCode': 404,
+                'headers': {'Content-Type': 'application/json'},
+                'body': json.dumps({'message': 'Bin not found'})
+            }
+        
+        # 빈 상태 업데이트
+        timestamp = int(datetime.now().timestamp())
+        status = 'OCCUPIED' if quantity > 0 else 'EMPTY'
+        
+        table.update_item(
+            Key={'bin_id': bin_id},
+            UpdateExpression="set product_id = :pid, quantity = :qty, bin_status = :status, updated_at = :time",
+            ExpressionAttributeValues={
+                ':pid': product_id if quantity > 0 else None,
+                ':qty': quantity,
+                ':status': status,
+                ':time': timestamp
+            }
+        )
+        
+        return {
+            'statusCode': 200,
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            },
+            'body': json.dumps({
+                'bin_id': bin_id,
+                'product_id': product_id,
+                'quantity': quantity,
+                'status': status,
+                'message': 'Bin assignment updated successfully'
+            })
+        }
+    except Exception as e:
+        print(f"Assign bin error: {str(e)}")
+        return {
+            'statusCode': 500,
+            'headers': {'Content-Type': 'application/json'},
+            'body': json.dumps({'message': f"Assign bin error: {str(e)}"})
+        }
+
+def delete_bin(bin_id):
+    """빈 삭제"""
+    try:
+        # 빈 존재 확인
+        table = dynamodb.Table(INVENTORY_TABLE)
+        response = table.get_item(Key={'bin_id': bin_id})
+        
+        if 'Item' not in response:
+            return {
+                'statusCode': 404,
+                'headers': {'Content-Type': 'application/json'},
+                'body': json.dumps({'message': 'Bin not found'})
+            }
+        
+        # 상품이 할당된 경우 삭제 불가
+        bin_data = response['Item']
+        if bin_data.get('bin_status') == 'OCCUPIED' and bin_data.get('quantity', 0) > 0:
+            return {
+                'statusCode': 400,
+                'headers': {'Content-Type': 'application/json'},
+                'body': json.dumps({'message': 'Cannot delete bin with assigned inventory'})
+            }
+        
+        # 빈 삭제
+        table.delete_item(Key={'bin_id': bin_id})
+        
+        return {
+            'statusCode': 200,
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            },
+            'body': json.dumps({'message': 'Bin deleted successfully'})
+        }
+    except Exception as e:
+        print(f"Delete bin error: {str(e)}")
+        return {
+            'statusCode': 500,
+            'headers': {'Content-Type': 'application/json'},
+            'body': json.dumps({'message': f"Delete bin error: {str(e)}"})
+        }
