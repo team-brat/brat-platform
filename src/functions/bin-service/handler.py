@@ -24,7 +24,7 @@ class DecimalEncoder(json.JSONEncoder):
 def lambda_handler(event, context):
     """빈 관리 Lambda 핸들러"""
     try:
-        print(f"Received event: {json.dumps(event)}", cls=DecimalEncoder)
+        print(f"Received event: {json.dumps(event, cls=DecimalEncoder)}")
         
         # API Gateway 프록시 통합
         if 'httpMethod' in event:
