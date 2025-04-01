@@ -252,11 +252,55 @@ def create_bin(event):
         rack = body.get('rack')
         level = body.get('level')
         
-        if not zone or not aisle or not rack or not level:
+        # 누락된 필드 확인
+        missing_fields = []
+        if not zone:
+            missing_fields.append('zone')
+        if not aisle:
+            missing_fields.append('aisle')
+        if not rack:
+            missing_fields.append('rack')
+        if not level:
+            missing_fields.append('level')
+        
+        if missing_fields:
             return {
                 'statusCode': 400,
                 'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-                'body': json.dumps({'message': 'Zone, aisle, rack, and level are required'}, cls=DecimalEncoder)
+                'body': json.dumps({
+                    'message': '필수 정보가 누락되었습니다. 다음 필드를 제공해주세요: ' + ', '.join(missing_fields),
+                    'missing_fields': missing_fields,
+                    'example': {
+                        'zone': 'A',
+                        'aisle': '01',
+                        'rack': '02',
+                        'level': '03'
+                    }
+                }, cls=DecimalEncoder)
+            }
+            
+        # 입력값 검증
+        validation_errors = []
+        
+        if zone and not isinstance(zone, str):
+            validation_errors.append('zone은 문자열이어야 합니다')
+        
+        if aisle and not isinstance(aisle, str):
+            validation_errors.append('aisle은 문자열이어야 합니다')
+        
+        if rack and not isinstance(rack, str):
+            validation_errors.append('rack은 문자열이어야 합니다')
+        
+        if level and not isinstance(level, str):
+            validation_errors.append('level은 문자열이어야 합니다')
+        
+        if validation_errors:
+            return {
+                'statusCode': 400,
+                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'body': json.dumps({
+                    'message': '입력값이 올바르지 않습니다: ' + '; '.join(validation_errors)
+                }, cls=DecimalEncoder)
             }
             
         # 빈 ID 생성
@@ -271,7 +315,10 @@ def create_bin(event):
             return {
                 'statusCode': 409,
                 'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-                'body': json.dumps({'message': 'Bin already exists'}, cls=DecimalEncoder)
+                'body': json.dumps({
+                    'message': f'이미 존재하는 빈 ID입니다: {bin_id}',
+                    'bin': response['Item']
+                }, cls=DecimalEncoder)
             }
         
         new_bin = {
@@ -296,7 +343,21 @@ def create_bin(event):
             },
             'body': json.dumps({
                 'bin': new_bin,
-                'message': 'Bin created successfully'
+                'message': '빈이 성공적으로 생성되었습니다'
+            }, cls=DecimalEncoder)
+        }
+    except json.JSONDecodeError:
+        return {
+            'statusCode': 400,
+            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'body': json.dumps({
+                'message': '올바른 JSON 형식이 아닙니다',
+                'example': {
+                    'zone': 'A',
+                    'aisle': '01',
+                    'rack': '02',
+                    'level': '03'
+                }
             }, cls=DecimalEncoder)
         }
     except Exception as e:
@@ -304,9 +365,9 @@ def create_bin(event):
         return {
             'statusCode': 500,
             'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-            'body': json.dumps({'message': f"Error creating bin: {str(e)}"}, cls=DecimalEncoder)
+            'body': json.dumps({'message': f"빈 생성 중 오류가 발생했습니다: {str(e)}"}, cls=DecimalEncoder)
         }
-
+        
 def update_bin(bin_id, event):
     """빈 정보 업데이트"""
     try:
