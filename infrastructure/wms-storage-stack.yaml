@@ -1,4 +1,4 @@
-AWSTemplateFormatVersion: '2010-09-09'
+AWSTemplateFormatVersion: '2025-04-01'
 Description: 'WMS Storage Infrastructure'
 
 Parameters:
@@ -97,6 +97,40 @@ Resources:
               KeyType: RANGE
           Projection:
             ProjectionType: ALL
+            
+  # 빈 위치 관리 DynamoDB 테이블 (추가됨)
+  BinLocationTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "wms-bin-locations-${EnvironmentType}"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: bin_id
+          AttributeType: S
+        - AttributeName: zone
+          AttributeType: S
+        - AttributeName: status
+          AttributeType: S
+      KeySchema:
+        - AttributeName: bin_id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: zone-index
+          KeySchema:
+            - AttributeName: zone
+              KeyType: HASH
+            - AttributeName: bin_id
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+        - IndexName: status-index
+          KeySchema:
+            - AttributeName: status
+              KeyType: HASH
+            - AttributeName: bin_id
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
   
   # 배포 패키지 저장을 위한 S3 버킷
   DeploymentBucket:
@@ -156,6 +190,12 @@ Outputs:
     Value: !Ref InventoryTable
     Export:
       Name: !Sub "${AWS::StackName}-InventoryTableName"
+      
+  BinLocationTableName:
+    Description: Name of the bin locations DynamoDB table
+    Value: !Ref BinLocationTable
+    Export:
+      Name: !Sub "${AWS::StackName}-BinLocationTableName"
   
   DeploymentBucketName:
     Description: Name of the deployment S3 bucket
