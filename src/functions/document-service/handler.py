@@ -60,8 +60,9 @@ def lambda_handler(event, context):
                 return upload_document(event)
                 
             # 문서 삭제
-            elif http_method == 'DELETE' and '/documents/' in path and path_params.get('document_id'):
-                return delete_document(path_params.get('document_id'))
+            elif http_method == 'DELETE' and path_params.get('document_id') and path_params.get('timestamp'):
+                return delete_document(path_params['document_id'], path_params['timestamp'])
+
                 
             # 새 문서 생성 (메타데이터만)
             elif http_method == 'POST' and path == '/documents':
@@ -154,14 +155,17 @@ def get_documents(event):
         }
 
 def get_document(document_id, timestamp):
-    """특정 문서 조회 (document_id + timestamp)"""
+    """복합 키로 특정 문서 조회"""
     try:
         table = dynamodb.Table(METADATA_TABLE)
 
-        response = table.get_item(Key={
-            'document_id': document_id,
-            'timestamp': int(timestamp)
-        })
+        # timestamp는 DynamoDB에서 Number 타입으로 저장되어 있으므로 변환
+        response = table.get_item(
+            Key={
+                'document_id': document_id,
+                'timestamp': int(float(timestamp))
+            }
+        )
 
         if 'Item' not in response:
             return {
@@ -172,7 +176,7 @@ def get_document(document_id, timestamp):
 
         document = response['Item']
 
-        # S3 미리 서명된 URL 생성 (30분 유효)
+        # S3 미리 서명된 URL 생성
         if 's3_path' in document:
             presigned_url = s3.generate_presigned_url(
                 'get_object',
@@ -197,7 +201,7 @@ def get_document(document_id, timestamp):
             'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
             'body': json.dumps({'message': f"Error getting document: {str(e)}"}, cls=DecimalEncoder)
         }
-     
+   
 
 def create_document(event):
     """문서 메타데이터 생성"""
@@ -366,28 +370,38 @@ def upload_document(event):
             'body': json.dumps({'message': f"Error uploading document: {str(e)}"}, cls=DecimalEncoder)
         }
 
-def delete_document(document_id):
-    """문서 삭제"""
+def delete_document(document_id, timestamp):
+    """복합 키(document_id + timestamp)로 문서 soft delete"""
     try:
         table = dynamodb.Table(METADATA_TABLE)
-        response = table.get_item(Key={'document_id': document_id})
-        
+
+        # S3 경로를 확인하기 위해 먼저 문서 조회
+        response = table.get_item(
+            Key={
+                'document_id': document_id,
+                'timestamp': int(float(timestamp))
+            }
+        )
+
         if 'Item' not in response:
             return {
                 'statusCode': 404,
                 'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
                 'body': json.dumps({'message': 'Document not found'}, cls=DecimalEncoder)
             }
-            
+
         item = response['Item']
-        
-        # S3에서 파일 삭제
+
+        # S3 객체 삭제
         if 's3_path' in item:
             s3.delete_object(Bucket=DOCUMENT_BUCKET, Key=item['s3_path'])
-        
-        # 메타데이터에서 상태 변경 (소프트 삭제)
+
+        # DynamoDB soft delete (status = DELETED)
         table.update_item(
-            Key={'document_id': document_id},
+            Key={
+                'document_id': document_id,
+                'timestamp': int(float(timestamp))
+            },
             UpdateExpression="set #status = :status, updated_at = :time",
             ExpressionAttributeNames={'#status': 'status'},
             ExpressionAttributeValues={
@@ -395,15 +409,13 @@ def delete_document(document_id):
                 ':time': int(datetime.now().timestamp())
             }
         )
-        
+
         return {
             'statusCode': 200,
-            'headers': {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
-            },
+            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
             'body': json.dumps({'message': 'Document deleted successfully'}, cls=DecimalEncoder)
         }
+
     except Exception as e:
         print(f"Error deleting document: {str(e)}")
         return {
