@@ -96,7 +96,62 @@ def lambda_handler(event, context):
             'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
             'body': json.dumps({'message': f"Error: {str(e)}"}, cls=DecimalEncoder)
         }
+def get_documents(event):
+    """모든 문서 목록 조회"""
+    try:
+        table = dynamodb.Table(METADATA_TABLE)
+        
+        # 파라미터 파싱
+        query_params = event.get('queryStringParameters', {}) or {}
+        document_type = query_params.get('document_type')
+        status = query_params.get('status', 'ACTIVE')  # 기본값으로 활성 문서만 조회
+        
+        # 필터 표현식 생성
+        filter_expression = "attribute_exists(document_id)"
+        expression_values = {}
+        
+        # 상태 필터
+        if status:
+            filter_expression += " AND #status = :status"
+            expression_values[':status'] = status
+        
+        # 문서 타입 필터
+        if document_type:
+            filter_expression += " AND document_type = :doctype"
+            expression_values[':doctype'] = document_type
 
+        # DynamoDB 스캔 실행
+        if expression_values:
+            response = table.scan(
+                FilterExpression=filter_expression,
+                ExpressionAttributeValues=expression_values,
+                ExpressionAttributeNames={'#status': 'status'} if status else {}
+            )
+        else:
+            response = table.scan()
+        
+        # 결과 정렬
+        items = sorted(response.get('Items', []), key=lambda x: x.get('updated_at', 0), reverse=True)
+        
+        return {
+            'statusCode': 200,
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            },
+            'body': json.dumps({
+                'documents': items,
+                'count': len(items)
+            }, cls=DecimalEncoder)
+        }
+    except Exception as e:
+        print(f"Error getting documents: {str(e)}")
+        return {
+            'statusCode': 500,
+            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'body': json.dumps({'message': f"Error getting documents: {str(e)}"}, cls=DecimalEncoder)
+        }
+        
 def get_document(document_id):
     """특정 문서 조회"""
     try:
