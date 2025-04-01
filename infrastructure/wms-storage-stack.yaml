@@ -1,4 +1,4 @@
-AWSTemplateFormatVersion: '2025-04-01'
+AWSTemplateFormatVersion: '2010-09-09'
 Description: 'WMS Storage Infrastructure'
 
 Parameters:
