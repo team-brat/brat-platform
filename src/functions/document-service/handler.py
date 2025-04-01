@@ -51,8 +51,9 @@ def lambda_handler(event, context):
                 return get_documents(event)
             
             # 특정 문서 조회
-            elif http_method == 'GET' and '/documents/' in path and path_params.get('document_id') and path_params.get('timestamp'):
+            elif http_method == 'GET' and path.startswith('/documents/') and path_params.get('document_id') and path_params.get('timestamp'):
                 return get_document(path_params['document_id'], path_params['timestamp'])
+
             
             # 문서 업로드
             elif http_method == 'POST' and path == '/documents/upload':
