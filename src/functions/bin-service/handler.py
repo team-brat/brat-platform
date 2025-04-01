@@ -94,38 +94,38 @@ def get_bins(event):
         zone = query_params.get('zone')
         status = query_params.get('status')
         
-        # TODO: DynamoDB에서 실제 데이터 조회
-        # 더미 데이터 반환
-        bins = [
-            {
-                'bin_id': 'A-01-01',
-                'zone': 'A',
-                'aisle': '01',
-                'rack': '01',
-                'level': '01',
-                'status': 'EMPTY',
-                'created_at': 1680221456,
-                'updated_at': 1680221456
-            },
-            {
-                'bin_id': 'A-01-02',
-                'zone': 'A',
-                'aisle': '01',
-                'rack': '01',
-                'level': '02',
-                'status': 'OCCUPIED',
-                'product_id': 'PROD-12345',
-                'quantity': 10,
-                'created_at': 1680221456,
-                'updated_at': 1680224456
-            }
-        ]
+        table = dynamodb.Table(INVENTORY_TABLE)
         
-        # 필터링
+        # 필터 표현식 생성
+        filter_expression = None
+        expression_values = {}
+        expression_names = {}
+        
+        # 필터 조건 설정
         if zone:
-            bins = [b for b in bins if b['zone'] == zone]
+            filter_expression = "#zone = :zone"
+            expression_values[':zone'] = zone
+            expression_names['#zone'] = 'zone'
+            
         if status:
-            bins = [b for b in bins if b['status'] == status]
+            if filter_expression:
+                filter_expression += " AND #status = :status"
+            else:
+                filter_expression = "#status = :status"
+            expression_values[':status'] = status
+            expression_names['#status'] = 'status'
+        
+        # DynamoDB 스캔
+        if filter_expression:
+            response = table.scan(
+                FilterExpression=filter_expression,
+                ExpressionAttributeValues=expression_values,
+                ExpressionAttributeNames=expression_names
+            )
+        else:
+            response = table.scan()
+        
+        bins = response.get('Items', [])
         
         return {
             'statusCode': 200,
@@ -146,38 +146,17 @@ def get_bins(event):
 def get_bin(bin_id):
     """특정 빈 조회"""
     try:
-        # TODO: DynamoDB에서 실제 데이터 조회
-        # 더미 데이터 반환
-        if bin_id == 'A-01-01':
-            bin_data = {
-                'bin_id': 'A-01-01',
-                'zone': 'A',
-                'aisle': '01',
-                'rack': '01',
-                'level': '01',
-                'status': 'EMPTY',
-                'created_at': 1680221456,
-                'updated_at': 1680221456
-            }
-        elif bin_id == 'A-01-02':
-            bin_data = {
-                'bin_id': 'A-01-02',
-                'zone': 'A',
-                'aisle': '01',
-                'rack': '01',
-                'level': '02',
-                'status': 'OCCUPIED',
-                'product_id': 'PROD-12345',
-                'quantity': 10,
-                'created_at': 1680221456,
-                'updated_at': 1680224456
-            }
-        else:
+        table = dynamodb.Table(INVENTORY_TABLE)
+        response = table.get_item(Key={'bin_id': bin_id})
+        
+        if 'Item' not in response:
             return {
                 'statusCode': 404,
                 'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
                 'body': json.dumps({'message': 'Bin not found'}, cls=DecimalEncoder)
             }
+        
+        bin_data = response['Item']
         
         return {
             'statusCode': 200,
@@ -201,17 +180,40 @@ def get_bin_status(event):
         query_params = event.get('queryStringParameters', {}) or {}
         zone = query_params.get('zone')
         
-        # TODO: DynamoDB에서 실제 데이터 조회
-        # 더미 데이터 반환
+        table = dynamodb.Table(INVENTORY_TABLE)
+        response = table.scan()
+        
+        bins = response.get('Items', [])
+        
+        # 전체 통계 계산
+        total_bins = len(bins)
+        occupied_bins = sum(1 for bin_item in bins if bin_item.get('status') == 'OCCUPIED')
+        empty_bins = total_bins - occupied_bins
+        utilization = (occupied_bins / total_bins * 100) if total_bins > 0 else 0
+        
+        # 존별 통계 계산
+        zones = {}
+        for bin_item in bins:
+            bin_zone = bin_item.get('zone')
+            if bin_zone not in zones:
+                zones[bin_zone] = {'total': 0, 'occupied': 0, 'empty': 0}
+            
+            zones[bin_zone]['total'] += 1
+            if bin_item.get('status') == 'OCCUPIED':
+                zones[bin_zone]['occupied'] += 1
+            else:
+                zones[bin_zone]['empty'] += 1
+        
+        # 존별 활용률 계산
+        for zone_key, zone_data in zones.items():
+            zone_data['utilization'] = (zone_data['occupied'] / zone_data['total'] * 100) if zone_data['total'] > 0 else 0
+        
         status = {
-            'total_bins': 50,
-            'occupied': 35,
-            'empty': 15,
-            'utilization': 70,
-            'zones': {
-                'A': {'total': 20, 'occupied': 15, 'empty': 5, 'utilization': 75},
-                'B': {'total': 30, 'occupied': 20, 'empty': 10, 'utilization': 67}
-            }
+            'total_bins': total_bins,
+            'occupied': occupied_bins,
+            'empty': empty_bins,
+            'utilization': utilization,
+            'zones': zones
         }
         
         # 특정 구역만 필터링
@@ -261,7 +263,16 @@ def create_bin(event):
         bin_id = f"{zone}-{aisle}-{rack}-{level}"
         timestamp = int(datetime.now().timestamp())
         
-        # TODO: DynamoDB에 실제 저장
+        table = dynamodb.Table(INVENTORY_TABLE)
+        
+        # 중복 확인
+        response = table.get_item(Key={'bin_id': bin_id})
+        if 'Item' in response:
+            return {
+                'statusCode': 409,
+                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'body': json.dumps({'message': 'Bin already exists'}, cls=DecimalEncoder)
+            }
         
         new_bin = {
             'bin_id': bin_id,
@@ -273,6 +284,9 @@ def create_bin(event):
             'created_at': timestamp,
             'updated_at': timestamp
         }
+        
+        # DynamoDB에 저장
+        table.put_item(Item=new_bin)
         
         return {
             'statusCode': 201,
@@ -301,16 +315,56 @@ def update_bin(bin_id, event):
         quantity = body.get('quantity')
         status = body.get('status')
         
-        # TODO: 실제 DynamoDB에서 빈 확인 및 업데이트
+        table = dynamodb.Table(INVENTORY_TABLE)
         
-        # 더미 응답
-        updated_bin = {
-            'bin_id': bin_id,
-            'product_id': product_id,
-            'quantity': quantity,
-            'status': status or ('OCCUPIED' if product_id and quantity > 0 else 'EMPTY'),
-            'updated_at': int(datetime.now().timestamp())
-        }
+        # 기존 빈 확인
+        response = table.get_item(Key={'bin_id': bin_id})
+        if 'Item' not in response:
+            return {
+                'statusCode': 404,
+                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'body': json.dumps({'message': 'Bin not found'}, cls=DecimalEncoder)
+            }
+        
+        existing_bin = response['Item']
+        timestamp = int(datetime.now().timestamp())
+        
+        # 상태 결정
+        if status is None:
+            if product_id and (quantity is None or quantity > 0):
+                status = 'OCCUPIED'
+            elif quantity == 0 or product_id is None:
+                status = 'EMPTY'
+            else:
+                status = existing_bin.get('status', 'EMPTY')
+        
+        # 업데이트 표현식 생성
+        update_expression = "SET updated_at = :timestamp"
+        expression_values = {':timestamp': timestamp}
+        
+        if status:
+            update_expression += ", #status = :status"
+            expression_values[':status'] = status
+        
+        if product_id is not None:
+            update_expression += ", product_id = :product_id"
+            expression_values[':product_id'] = product_id
+        
+        if quantity is not None:
+            update_expression += ", quantity = :quantity"
+            expression_values[':quantity'] = quantity
+        
+        # DynamoDB 업데이트
+        table.update_item(
+            Key={'bin_id': bin_id},
+            UpdateExpression=update_expression,
+            ExpressionAttributeValues=expression_values,
+            ExpressionAttributeNames={'#status': 'status'} if status else {}
+        )
+        
+        # 업데이트된 항목 반환
+        response = table.get_item(Key={'bin_id': bin_id})
+        updated_bin = response['Item']
         
         return {
             'statusCode': 200,
@@ -334,9 +388,20 @@ def update_bin(bin_id, event):
 def delete_bin(bin_id):
     """빈 삭제"""
     try:
-        # TODO: 실제 DynamoDB에서 빈 확인 및 삭제
+        table = dynamodb.Table(INVENTORY_TABLE)
         
-        # 더미 응답
+        # 기존 빈 확인
+        response = table.get_item(Key={'bin_id': bin_id})
+        if 'Item' not in response:
+            return {
+                'statusCode': 404,
+                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'body': json.dumps({'message': 'Bin not found'}, cls=DecimalEncoder)
+            }
+        
+        # DynamoDB에서 삭제
+        table.delete_item(Key={'bin_id': bin_id})
+        
         return {
             'statusCode': 200,
             'headers': {
