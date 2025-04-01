@@ -51,8 +51,8 @@ def lambda_handler(event, context):
                 return get_documents(event)
             
             # 특정 문서 조회
-            elif http_method == 'GET' and '/documents/' in path and path_params.get('document_id'):
-                return get_document(path_params.get('document_id'))
+            elif http_method == 'GET' and '/documents/' in path and path_params.get('document_id') and path_params.get('timestamp'):
+                return get_document(path_params['document_id'], path_params['timestamp'])
             
             # 문서 업로드
             elif http_method == 'POST' and path == '/documents/upload':
@@ -151,67 +151,26 @@ def get_documents(event):
             'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
             'body': json.dumps({'message': f"Error getting documents: {str(e)}"}, cls=DecimalEncoder)
         }
-        
-def get_document(document_id):
-    """특정 문서 조회"""
+
+def get_document(document_id, timestamp):
+    """특정 문서 조회 (document_id + timestamp)"""
     try:
         table = dynamodb.Table(METADATA_TABLE)
-        
-        # document_id로 쿼리 실행 (복합 키를 고려)
-        response = table.query(
-            KeyConditionExpression=boto3.dynamodb.conditions.Key('document_id').eq(document_id)
-        )
-        
-        if not response.get('Items'):
-            return {
-                'statusCode': 404,
-                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-                'body': json.dumps({'message': 'Document not found'}, cls=DecimalEncoder)
-            }
-        
-        # 가장 최근 항목 선택 (timestamp 기준)
-        document = sorted(response['Items'], key=lambda x: x.get('timestamp', 0), reverse=True)[0]
-        
-        # S3 미리 서명된 URL 생성 (30분 유효)
-        if 's3_path' in document:
-            presigned_url = s3.generate_presigned_url(
-                'get_object',
-                Params={'Bucket': DOCUMENT_BUCKET, 'Key': document['s3_path']},
-                ExpiresIn=1800
-            )
-            document['download_url'] = presigned_url
-        
-        return {
-            'statusCode': 200,
-            'headers': {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
-            },
-            'body': json.dumps(document, cls=DecimalEncoder)
-        }
-    except Exception as e:
-        print(f"Error getting document: {str(e)}")
-        return {
-            'statusCode': 500,
-            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-            'body': json.dumps({'message': f"Error getting document: {str(e)}"}, cls=DecimalEncoder)
-        }
-        
-def get_document(document_id):
-    """특정 문서 조회"""
-    try:
-        table = dynamodb.Table(METADATA_TABLE)
-        response = table.get_item(Key={'document_id': document_id})
-        
+
+        response = table.get_item(Key={
+            'document_id': document_id,
+            'timestamp': int(timestamp)
+        })
+
         if 'Item' not in response:
             return {
                 'statusCode': 404,
                 'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
                 'body': json.dumps({'message': 'Document not found'}, cls=DecimalEncoder)
             }
-        
+
         document = response['Item']
-        
+
         # S3 미리 서명된 URL 생성 (30분 유효)
         if 's3_path' in document:
             presigned_url = s3.generate_presigned_url(
@@ -220,7 +179,7 @@ def get_document(document_id):
                 ExpiresIn=1800
             )
             document['download_url'] = presigned_url
-        
+
         return {
             'statusCode': 200,
             'headers': {
@@ -229,6 +188,7 @@ def get_document(document_id):
             },
             'body': json.dumps(document, cls=DecimalEncoder)
         }
+
     except Exception as e:
         print(f"Error getting document: {str(e)}")
         return {
@@ -236,6 +196,7 @@ def get_document(document_id):
             'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
             'body': json.dumps({'message': f"Error getting document: {str(e)}"}, cls=DecimalEncoder)
         }
+     
 
 def create_document(event):
     """문서 메타데이터 생성"""
