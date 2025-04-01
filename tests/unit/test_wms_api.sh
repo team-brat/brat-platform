@@ -1,5 +1,9 @@
 #!/bin/bash
+
 # WMS API 테스트 스크립트
+
+# chmod +x test_wms_api.sh       
+# % ./test_wms_api.sh
 
 # API 기본 URL
 API_URL="https://vxl6odjqg7.execute-api.us-east-2.amazonaws.com/dev"
