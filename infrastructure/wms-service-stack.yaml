@@ -182,62 +182,6 @@ Resources:
         IntegrationHttpMethod: POST
         Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${DocumentServiceFunction.Arn}/invocations"
 
-  # 빈 리소스 및 메서드
-  BinsResource:
-    Type: AWS::ApiGateway::Resource
-    Properties:
-      RestApiId: !Ref WMSAPI
-      ParentId: !GetAtt WMSAPI.RootResourceId
-      PathPart: "bins"
-
-  BinsGetMethod:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref WMSAPI
-      ResourceId: !Ref BinsResource
-      HttpMethod: GET
-      AuthorizationType: NONE
-      Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${BinServiceFunction.Arn}/invocations"
-
-  BinsPostMethod:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref WMSAPI
-      ResourceId: !Ref BinsResource
-      HttpMethod: POST
-      AuthorizationType: NONE
-      Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${BinServiceFunction.Arn}/invocations"
-
-  BinsOptionsMethod:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref WMSAPI
-      ResourceId: !Ref BinsResource
-      HttpMethod: OPTIONS
-      AuthorizationType: NONE
-      Integration:
-        Type: MOCK
-        IntegrationResponses:
-          - StatusCode: '200'
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
-              method.response.header.Access-Control-Allow-Methods: "'GET,POST,OPTIONS'"
-              method.response.header.Access-Control-Allow-Origin: "'*'"
-        RequestTemplates:
-          application/json: '{"statusCode": 200}'
-      MethodResponses:
-        - StatusCode: '200'
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Headers: true
-            method.response.header.Access-Control-Allow-Methods: true
-            method.response.header.Access-Control-Allow-Origin: true
-
   # 입고 주문 리소스 및 메서드 (추가)
   ReceivingOrdersResource:
     Type: AWS::ApiGateway::Resource
@@ -414,8 +358,6 @@ Resources:
       - DocumentsPostMethod
       - DocumentIdGetMethod
       - DocumentIdDeleteMethod
-      - BinsGetMethod
-      - BinsPostMethod
       - ReceivingOrdersGetMethod
       - ReceivingOrdersPostMethod
       - ReceivingOrderIdGetMethod
