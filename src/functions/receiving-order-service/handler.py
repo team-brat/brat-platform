@@ -401,7 +401,7 @@ def update_receiving_order(event, order_id):
         
         # DynamoDB 업데이트
         expression_names = {'#status': 'status'} if 'status' in body else {}
-        
+
         table.update_item(
             Key={'order_id': order_id},
             UpdateExpression=update_expression,
@@ -409,11 +409,11 @@ def update_receiving_order(event, order_id):
             ExpressionAttributeNames=expression_names,
             ReturnValues="ALL_NEW"
         )
-        
+
         # 업데이트된 주문 조회
         response = table.get_item(Key={'order_id': order_id})
         updated_order = response['Item']
-        
+
         # 날짜 변환 (Timestamp → ISO 문자열)
         if 'scheduled_date' in updated_order and isinstance(updated_order['scheduled_date'], (int, float)):
             updated_order['scheduled_date_iso'] = datetime.fromtimestamp(updated_order['scheduled_date']).isoformat()
@@ -434,21 +434,8 @@ def update_receiving_order(event, order_id):
                 'order': updated_order,
                 'message': 'Receiving completed successfully'
             }, cls=DecimalEncoder)
-        } datetime.fromtimestamp(updated_order['created_at']).isoformat()
-        if 'updated_at' in updated_order and isinstance(updated_order['updated_at'], (int, float)):
-            updated_order['updated_at_iso'] = datetime.fromtimestamp(updated_order['updated_at']).isoformat()
-        
-        return {
-            'statusCode': 200,
-            'headers': {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
-            },
-            'body': json.dumps({
-                'order': updated_order,
-                'message': 'Receiving order updated successfully'
-            }, cls=DecimalEncoder)
         }
+        
     except Exception as e:
         print(f"Error updating receiving order: {str(e)}")
         return {
