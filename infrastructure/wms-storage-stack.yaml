@@ -98,7 +98,7 @@ Resources:
           Projection:
             ProjectionType: ALL
             
-  # 빈 위치 관리 DynamoDB 테이블 (추가됨)
+  # 빈 위치 관리 DynamoDB 테이블
   BinLocationTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -128,6 +128,80 @@ Resources:
             - AttributeName: status
               KeyType: HASH
             - AttributeName: bin_id
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  # 입고 주문 관리 DynamoDB 테이블 (추가)
+  ReceivingOrderTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "wms-receiving-orders-${EnvironmentType}"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: order_id
+          AttributeType: S
+        - AttributeName: supplier_id
+          AttributeType: S
+        - AttributeName: status
+          AttributeType: S
+        - AttributeName: scheduled_date
+          AttributeType: N
+        - AttributeName: created_at
+          AttributeType: N
+      KeySchema:
+        - AttributeName: order_id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: supplier-index
+          KeySchema:
+            - AttributeName: supplier_id
+              KeyType: HASH
+            - AttributeName: created_at
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+        - IndexName: status-date-index
+          KeySchema:
+            - AttributeName: status
+              KeyType: HASH
+            - AttributeName: scheduled_date
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+        - IndexName: date-status-index
+          KeySchema:
+            - AttributeName: scheduled_date
+              KeyType: HASH
+            - AttributeName: status
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+  
+  # 입고 이력 관리 DynamoDB 테이블 (추가)
+  ReceivingHistoryTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "wms-receiving-history-${EnvironmentType}"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: item_id
+          AttributeType: S
+        - AttributeName: timestamp
+          AttributeType: N
+        - AttributeName: order_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: item_id
+          KeyType: HASH
+        - AttributeName: timestamp
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: order-item-index
+          KeySchema:
+            - AttributeName: order_id
+              KeyType: HASH
+            - AttributeName: item_id
               KeyType: RANGE
           Projection:
             ProjectionType: ALL
@@ -196,6 +270,18 @@ Outputs:
     Value: !Ref BinLocationTable
     Export:
       Name: !Sub "${AWS::StackName}-BinLocationTableName"
+  
+  ReceivingOrderTableName:
+    Description: Name of the receiving orders DynamoDB table
+    Value: !Ref ReceivingOrderTable
+    Export:
+      Name: !Sub "${AWS::StackName}-ReceivingOrderTableName"
+  
+  ReceivingHistoryTableName:
+    Description: Name of the receiving history DynamoDB table
+    Value: !Ref ReceivingHistoryTable
+    Export:
+      Name: !Sub "${AWS::StackName}-ReceivingHistoryTableName"
   
   DeploymentBucketName:
     Description: Name of the deployment S3 bucket
