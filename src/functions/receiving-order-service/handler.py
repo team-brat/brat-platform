@@ -435,7 +435,7 @@ def update_receiving_order(event, order_id):
                 'message': 'Receiving completed successfully'
             }, cls=DecimalEncoder)
         }
-        
+
     except Exception as e:
         print(f"Error updating receiving order: {str(e)}")
         return {
@@ -650,4 +650,20 @@ def process_receiving(event, order_id):
         if 'scheduled_date' in updated_order and isinstance(updated_order['scheduled_date'], (int, float)):
             updated_order['scheduled_date_iso'] = datetime.fromtimestamp(updated_order['scheduled_date']).isoformat()
         if 'created_at' in updated_order and isinstance(updated_order['created_at'], (int, float)):
-            updated_order['created_at_iso'] =
+            updated_order['created_at_iso'] = datetime.fromtimestamp(updated_order['created_at']).isoformat()
+        if 'updated_at' in updated_order and isinstance(updated_order['updated_at'], (int, float)):
+            updated_order['updated_at_iso'] = datetime.fromtimestamp(updated_order['updated_at']).isoformat()
+        if 'received_at' in updated_order and isinstance(updated_order['received_at'], (int, float)):
+            updated_order['received_at_iso'] = datetime.fromtimestamp(updated_order['received_at']).isoformat()
+            
+        return {
+            'statusCode': 200,
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            },
+            'body': json.dumps({
+                'order': updated_order,
+                'message': 'Receiving completed successfully'
+            }, cls=DecimalEncoder)
+}
