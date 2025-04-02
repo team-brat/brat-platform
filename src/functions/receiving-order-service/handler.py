@@ -665,5 +665,12 @@ def process_receiving(event, order_id):
             'body': json.dumps({
                 'order': updated_order,
                 'message': 'Receiving completed successfully'
-            }, cls=DecimalEncoder)
-}
+            }, cls=DecimalEncoder)}
+
+    except Exception as e:  # 이 부분이 누락되었을 수 있습니다
+        print(f"Error processing receiving: {str(e)}")
+        return {
+            'statusCode': 500,
+            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'body': json.dumps({'message': f"Error processing receiving: {str(e)}"}, cls=DecimalEncoder)
+        }
