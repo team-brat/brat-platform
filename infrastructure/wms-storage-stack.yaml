@@ -16,7 +16,8 @@ Resources:
   DocumentBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub "wms-documents-${EnvironmentType}-${AWS::AccountId}"
+      #BucketName: !Sub "wms-documents-${EnvironmentType}-${AWS::AccountId}"
+      BucketName: !Sub "wms-documents-${EnvironmentType}-${AWS::AccountId}-${AWS::StackName}"
       VersioningConfiguration:
         Status: Enabled
       PublicAccessBlockConfiguration:
