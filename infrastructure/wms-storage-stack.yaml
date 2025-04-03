@@ -245,10 +245,6 @@ Resources:
           AttributeType: S
         - AttributeName: timestamp
           AttributeType: N
-        - AttributeName: event_type
-          AttributeType: S
-        - AttributeName: supplier_id
-          AttributeType: S
       KeySchema:
         - AttributeName: history_id
           KeyType: HASH
@@ -261,22 +257,7 @@ Resources:
               KeyType: RANGE
           Projection:
             ProjectionType: ALL
-        - IndexName: event-time-index
-          KeySchema:
-            - AttributeName: event_type
-              KeyType: HASH
-            - AttributeName: timestamp
-              KeyType: RANGE
-          Projection:
-            ProjectionType: ALL
-        - IndexName: supplier_id-index
-          KeySchema:
-            - AttributeName: supplier_id
-              KeyType: HASH
-            - AttributeName: timestamp
-              KeyType: RANGE
-          Projection:
-            ProjectionType: ALL
+
 
   # 공급업체 테이블 (추가)
   SupplierTable:
