@@ -345,7 +345,7 @@ Resources:
   DeploymentBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub "wms-deployment-${EnvironmentType}-${AWS::AccountId}"
+      BucketName: !Sub BucketName: !Sub "wms-deployment-${EnvironmentType}-${AWS::AccountId}-${AWS::StackName}" #"wms-deployment-${EnvironmentType}-${AWS::AccountId}"
       VersioningConfiguration:
         Status: Enabled
       PublicAccessBlockConfiguration:
