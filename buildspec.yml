@@ -21,7 +21,7 @@ phases:
       - mkdir -p deployment
       
       # Document Service
-      - cp src/functions/document-service/DocumentService.py ./document-package/
+      - cp src/functions/receiving-order-service/DocumentService.py ./document-package/
       - cd document-package
       - zip -r ../deployment/document-service-deployment-package.zip .
       - cd ..
