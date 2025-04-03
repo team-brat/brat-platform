@@ -1,0 +1,37 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Resources:
+  DocumentServiceFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./src/functions/document-service/
+      Handler: handler.lambda_handler
+      Runtime: python3.9
+      Timeout: 30
+      Environment:
+        Variables:
+          DOCUMENT_BUCKET: wms-documents-dev-242201288894
+          METADATA_TABLE: wms-document-metadata-dev
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /documents
+            Method: any
+
+  BinServiceFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./src/functions/bin-service/
+      Handler: handler.lambda_handler
+      Runtime: python3.9
+      Timeout: 30
+      Environment:
+        Variables:
+          INVENTORY_TABLE: wms-inventory-dev
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /bins
+            Method: any

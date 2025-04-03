@@ -41,21 +41,29 @@ Resources:
       AttributeDefinitions:
         - AttributeName: document_id
           AttributeType: S
-        - AttributeName: timestamp
-          AttributeType: N
+        - AttributeName: order_id
+          AttributeType: S
         - AttributeName: document_type
           AttributeType: S
+        - AttributeName: upload_date
+          AttributeType: N
       KeySchema:
         - AttributeName: document_id
           KeyType: HASH
-        - AttributeName: timestamp
-          KeyType: RANGE
       GlobalSecondaryIndexes:
-        - IndexName: type-time-index
+        - IndexName: order_id-index
+          KeySchema:
+            - AttributeName: order_id
+              KeyType: HASH
+            - AttributeName: document_type
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+        - IndexName: type-date-index
           KeySchema:
             - AttributeName: document_type
               KeyType: HASH
-            - AttributeName: timestamp
+            - AttributeName: upload_date
               KeyType: RANGE
           Projection:
             ProjectionType: ALL
@@ -132,7 +140,7 @@ Resources:
           Projection:
             ProjectionType: ALL
 
-  # 입고 주문 관리 DynamoDB 테이블 (추가)
+  # 입고 주문 관리 DynamoDB 테이블
   ReceivingOrderTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -149,6 +157,8 @@ Resources:
           AttributeType: N
         - AttributeName: created_at
           AttributeType: N
+        - AttributeName: verification_status
+          AttributeType: S
       KeySchema:
         - AttributeName: order_id
           KeyType: HASH
@@ -177,31 +187,175 @@ Resources:
               KeyType: RANGE
           Projection:
             ProjectionType: ALL
+        - IndexName: verification-status-index
+          KeySchema:
+            - AttributeName: verification_status
+              KeyType: HASH
+            - AttributeName: created_at
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
   
-  # 입고 이력 관리 DynamoDB 테이블 (추가)
+  # 입고 품목 테이블 (추가)
+  ReceivingItemTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "wms-receiving-items-${EnvironmentType}"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: item_id
+          AttributeType: S
+        - AttributeName: order_id
+          AttributeType: S
+        - AttributeName: sku_number
+          AttributeType: S
+        - AttributeName: created_at
+          AttributeType: N
+      KeySchema:
+        - AttributeName: item_id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: order_id-index
+          KeySchema:
+            - AttributeName: order_id
+              KeyType: HASH
+            - AttributeName: created_at
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+        - IndexName: sku-index
+          KeySchema:
+            - AttributeName: sku_number
+              KeyType: HASH
+            - AttributeName: created_at
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  # 입고 이력 관리 DynamoDB 테이블
   ReceivingHistoryTable:
     Type: AWS::DynamoDB::Table
     Properties:
       TableName: !Sub "wms-receiving-history-${EnvironmentType}"
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
-        - AttributeName: item_id
+        - AttributeName: history_id
+          AttributeType: S
+        - AttributeName: order_id
           AttributeType: S
         - AttributeName: timestamp
           AttributeType: N
-        - AttributeName: order_id
+        - AttributeName: event_type
+          AttributeType: S
+        - AttributeName: supplier_id
           AttributeType: S
       KeySchema:
-        - AttributeName: item_id
+        - AttributeName: history_id
           KeyType: HASH
-        - AttributeName: timestamp
-          KeyType: RANGE
       GlobalSecondaryIndexes:
-        - IndexName: order-item-index
+        - IndexName: order-time-index
           KeySchema:
             - AttributeName: order_id
               KeyType: HASH
-            - AttributeName: item_id
+            - AttributeName: timestamp
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+        - IndexName: event-time-index
+          KeySchema:
+            - AttributeName: event_type
+              KeyType: HASH
+            - AttributeName: timestamp
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+        - IndexName: supplier_id-index
+          KeySchema:
+            - AttributeName: supplier_id
+              KeyType: HASH
+            - AttributeName: timestamp
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  # 공급업체 테이블 (추가)
+  SupplierTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "wms-suppliers-${EnvironmentType}"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: supplier_id
+          AttributeType: S
+        - AttributeName: supplier_name
+          AttributeType: S
+        - AttributeName: status
+          AttributeType: S
+        - AttributeName: created_at
+          AttributeType: N
+      KeySchema:
+        - AttributeName: supplier_id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: name-index
+          KeySchema:
+            - AttributeName: supplier_name
+              KeyType: HASH
+            - AttributeName: created_at
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+        - IndexName: status-index
+          KeySchema:
+            - AttributeName: status
+              KeyType: HASH
+            - AttributeName: created_at
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  # 검증 결과 테이블 (추가)
+  VerificationResultTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "wms-verification-results-${EnvironmentType}"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: verification_id
+          AttributeType: S
+        - AttributeName: order_id
+          AttributeType: S
+        - AttributeName: document_id
+          AttributeType: S
+        - AttributeName: verification_date
+          AttributeType: N
+        - AttributeName: result
+          AttributeType: S
+      KeySchema:
+        - AttributeName: verification_id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: order_id-index
+          KeySchema:
+            - AttributeName: order_id
+              KeyType: HASH
+            - AttributeName: verification_date
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+        - IndexName: document-index
+          KeySchema:
+            - AttributeName: document_id
+              KeyType: HASH
+            - AttributeName: verification_date
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+        - IndexName: result-date-index
+          KeySchema:
+            - AttributeName: result
+              KeyType: HASH
+            - AttributeName: verification_date
               KeyType: RANGE
           Projection:
             ProjectionType: ALL
@@ -277,11 +431,29 @@ Outputs:
     Export:
       Name: !Sub "${AWS::StackName}-ReceivingOrderTableName"
   
+  ReceivingItemTableName:
+    Description: Name of the receiving items DynamoDB table
+    Value: !Ref ReceivingItemTable
+    Export:
+      Name: !Sub "${AWS::StackName}-ReceivingItemTableName"
+  
   ReceivingHistoryTableName:
     Description: Name of the receiving history DynamoDB table
     Value: !Ref ReceivingHistoryTable
     Export:
       Name: !Sub "${AWS::StackName}-ReceivingHistoryTableName"
+  
+  SupplierTableName:
+    Description: Name of the suppliers DynamoDB table
+    Value: !Ref SupplierTable
+    Export:
+      Name: !Sub "${AWS::StackName}-SupplierTableName"
+  
+  VerificationResultTableName:
+    Description: Name of the verification results DynamoDB table
+    Value: !Ref VerificationResultTable
+    Export:
+      Name: !Sub "${AWS::StackName}-VerificationResultTableName"
   
   DeploymentBucketName:
     Description: Name of the deployment S3 bucket
