@@ -24,7 +24,7 @@ Resources:
       MemorySize: 256
       Code:
         S3Bucket: !ImportValue 'wms-storage-stack-DeploymentBucketName'
-        S3Key: !Sub "${EnvironmentType}/receiving-order-service/document-service-deployment-package.zip"
+        S3Key: !Sub "${EnvironmentType}/document-service/deployment-package.zip"
       Environment:
         Variables:
           DOCUMENT_BUCKET: !ImportValue 'wms-storage-stack-DocumentBucketName'
