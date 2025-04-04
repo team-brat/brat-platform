@@ -440,7 +440,7 @@ Outputs:
   
   DeploymentBucketName:
     Description: Name of the deployment S3 bucket
-    Value: !Ref DeploymentBucket
+    Value: wms-deployment-dev-242201288894
     Export:
       Name: !Sub "${AWS::StackName}-DeploymentBucketName"
   
