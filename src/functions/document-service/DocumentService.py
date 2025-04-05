@@ -146,56 +146,18 @@ def get_document(document_id):
     """특정 문서 조회"""
     try:
         table = dynamodb.Table(DOCUMENT_METADATA_TABLE)
-        
-        response = table.get_item(
-            Key={
-                'document_id': document_id
-            }
-        )
-        
+
+        response = table.get_item(Key={'document_id': document_id})
+
         if 'Item' not in response:
             return {
                 'statusCode': 404,
                 'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
                 'body': json.dumps({'message': 'Document not found'}, cls=DecimalEncoder)
             }
-            
+
         document = response['Item']
-        s3_key = document['s3_key']
-        
-        # S3에서 파일 삭제
-        s3.delete_object(
-            Bucket=DOCUMENT_BUCKET,
-            Key=s3_key
-        )
-        
-        # DynamoDB에서 메타데이터 삭제
-        table.delete_item(
-            Key={
-                'document_id': document_id
-            }
-        )
-        
-        return {
-            'statusCode': 200,
-            'headers': {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
-            },
-            'body': json.dumps({
-                'message': 'Document deleted successfully'
-            }, cls=DecimalEncoder)
-        }
-    except Exception as e:
-        print(f"Error deleting document: {str(e)}")
-        return {
-            'statusCode': 500,
-            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-body': json.dumps({'message': 'Document not found'}, cls=DecimalEncoder)
-            }
-            
-        document = response['Item']
-        
+
         # S3에서 문서 URL 생성 (임시 URL)
         presigned_url = s3.generate_presigned_url(
             'get_object',
@@ -205,9 +167,9 @@ body': json.dumps({'message': 'Document not found'}, cls=DecimalEncoder)
             },
             ExpiresIn=3600  # 1시간 유효
         )
-        
+
         document['download_url'] = presigned_url
-        
+
         return {
             'statusCode': 200,
             'headers': {
@@ -216,6 +178,7 @@ body': json.dumps({'message': 'Document not found'}, cls=DecimalEncoder)
             },
             'body': json.dumps(document, cls=DecimalEncoder)
         }
+
     except Exception as e:
         print(f"Error getting document: {str(e)}")
         return {
