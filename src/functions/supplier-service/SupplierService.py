@@ -172,7 +172,7 @@ def create_supplier(event):
         body = json.loads(event.get('body', '{}'))
         
         # 필수 필드 검증
-        required_fields = ['supplier_name', 'contact_name', 'contact_phone']
+        required_fields = ['supplier_name', 'contact_email', 'contact_phone']
         missing_fields = [field for field in required_fields if field not in body]
         
         if missing_fields:
@@ -190,11 +190,11 @@ def create_supplier(event):
         supplier_data = {
             'supplier_id': supplier_id,
             'supplier_name': body.get('supplier_name'),
-            'contact_name': body.get('contact_name'),
+            'contact_email': body.get('contact_email', ''),
             'contact_phone': body.get('contact_phone'),
+            'contact_name': body.get('contact_name', ''),
             'responsible_person': body.get('responsible_person', ''),
             'address': body.get('address', ''),
-            'email': body.get('email', ''),
             'status': 'ACTIVE',
             'created_at': timestamp,
             'updated_at': timestamp
@@ -250,9 +250,9 @@ def update_supplier(event, supplier_id):
             'supplier_name': 'sname',
             'contact_name': 'cname',
             'contact_phone': 'cphone',
+            'contact_email': 'cemail',
             'responsible_person': 'resperson',
             'address': 'addr',
-            'email': 'email',
             'status': 'status'
         }
         
@@ -354,11 +354,11 @@ def get_supplier_inbound_history(supplier_id):
         
         # GSI가 있는 경우:
         response = history_table.query(
-            IndexName='supplier_id-index',
-            KeyConditionExpression='supplier_id = :sid',
+            IndexName='order-time-index',  # 실제 인덱스 이름으로 변경
+            KeyConditionExpression='order_id = :oid',
             FilterExpression='event_type = :type',
             ExpressionAttributeValues={
-                ':sid': supplier_id,
+                ':oid': supplier_id,
                 ':type': 'RECEIVING_COMPLETED'
             }
         )
@@ -380,13 +380,6 @@ def get_supplier_inbound_history(supplier_id):
                 'history': history_items,
                 'count': len(history_items)
             }, cls=DecimalEncoder)
-        }
-    except Exception as e:
-        print(f"Error getting supplier outbound history: {str(e)}")
-        return {
-            'statusCode': 500,
-            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
-            'body': json.dumps({'message': f"Error getting supplier outbound history: {str(e)}"}, cls=DecimalEncoder)
         }
     except Exception as e:
         print(f"Error getting supplier inbound history: {str(e)}")
@@ -418,11 +411,11 @@ def get_supplier_outbound_history(supplier_id):
         
         # GSI가 있는 경우:
         response = history_table.query(
-            IndexName='supplier_id-index',
-            KeyConditionExpression='supplier_id = :sid',
+            IndexName='order-time-index',  # 실제 인덱스 이름으로 변경
+            KeyConditionExpression='order_id = :oid',
             FilterExpression='event_type = :type',
             ExpressionAttributeValues={
-                ':sid': supplier_id,
+                ':oid': supplier_id,
                 ':type': 'DISPATCH_COMPLETED'
             }
         )
@@ -444,4 +437,11 @@ def get_supplier_outbound_history(supplier_id):
                 'history': history_items,
                 'count': len(history_items)
             }, cls=DecimalEncoder)
+        }
+    except Exception as e:
+        print(f"Error getting supplier outbound history: {str(e)}")
+        return {
+            'statusCode': 500,
+            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'body': json.dumps({'message': f"Error getting supplier outbound history: {str(e)}"}, cls=DecimalEncoder)
         }
