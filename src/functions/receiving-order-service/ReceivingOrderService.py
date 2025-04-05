@@ -659,14 +659,24 @@ def get_receiving_orders(event):
 
         # DynamoDB 스캔 실행
         if expression_values:
-            expression_names = {'#status': 'status'} if status else {}
-            response = table.scan(
-                FilterExpression=filter_expression,
-                ExpressionAttributeValues=expression_values,
-                ExpressionAttributeNames=expression_names
-            )
+            expression_names = {}
+            if status:
+                expression_names['#status'] = 'status'
+
+            if expression_names:
+                response = table.scan(
+                    FilterExpression=filter_expression,
+                    ExpressionAttributeValues=expression_values,
+                    ExpressionAttributeNames=expression_names
+                )
+            else:
+                response = table.scan(
+                    FilterExpression=filter_expression,
+                    ExpressionAttributeValues=expression_values
+                )
         else:
             response = table.scan()
+
         
         # 결과 정렬
         items = sorted(response.get('Items', []), key=lambda x: x.get('created_at', 0), reverse=True)
