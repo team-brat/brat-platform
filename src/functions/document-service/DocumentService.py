@@ -287,6 +287,52 @@ def upload_document(event):
             'body': json.dumps({'message': f"Error uploading document: {str(e)}"}, cls=DecimalEncoder)
         }
 
+
+    """문서 삭제"""
+    try:
+        table = dynamodb.Table(DOCUMENT_METADATA_TABLE)
+        
+        # 문서 메타데이터 조회
+        response = table.get_item(
+            Key={
+                'document_id': document_id
+            }
+        )
+        
+        if 'Item' not in response:
+            return {
+                'statusCode': 404,
+                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'body': json.dumps({'message': 'Document not found'}, cls=DecimalEncoder)
+            }
+            
+        document = response['Item']
+        s3_key = document['s3_key']
+        
+        # S3에서 파일 삭제
+        s3.delete_object(
+            Bucket=DOCUMENT_BUCKET,
+            Key=s3_key
+        )
+        
+        # DynamoDB에서 메타데이터 삭제
+        table.delete_item(
+            Key={
+                'document_id': document_id
+            }
+        )
+        
+        return {
+            'statusCode': 200,
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            },
+            'body': json.dumps({
+                'message': 'Document deleted successfully'
+            }, cls=DecimalEncoder)
+        }
+
 def delete_document(document_id):
     """문서 삭제"""
     try:
@@ -331,4 +377,12 @@ def delete_document(document_id):
             'body': json.dumps({
                 'message': 'Document deleted successfully'
             }, cls=DecimalEncoder)
+        }
+
+    except Exception as e:
+        print(f"Error deleting document: {str(e)}")
+        return {
+            'statusCode': 500,
+            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'body': json.dumps({'message': f"Error deleting document: {str(e)}"}, cls=DecimalEncoder)
         }
