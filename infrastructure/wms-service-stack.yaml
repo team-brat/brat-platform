@@ -460,7 +460,7 @@ Outputs:
     Description: URL of the WMS API
     Value: !Sub "https://${WMSAPI}.execute-api.${AWS::Region}.amazonaws.com/${EnvironmentType}"
     Export:
-      Name: !Sub "${AWS::StackName}-ApiEndpoint"/${SupplierFunction.Arn}/invocations"
+      Name: !Sub "${AWS::StackName}-ApiEndpoint"
 
   SupplierOutboundHistoryOptionsMethod:
     Type: AWS::ApiGateway::Method
