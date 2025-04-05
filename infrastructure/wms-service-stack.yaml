@@ -297,6 +297,476 @@ Resources:
             method.response.header.Access-Control-Allow-Methods: true
             method.response.header.Access-Control-Allow-Origin: true
 
+  # API Gateway 배포
+  APIDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - DocumentsGetMethod
+      - DocumentsPostMethod
+      - DocumentsOptionsMethod
+      - DocumentIdGetMethod
+      - DocumentIdDeleteMethod
+      - DocumentIdOptionsMethod
+      - ReceivingOrdersGetMethod
+      - ReceivingOrdersPostMethod
+      - ReceivingOrdersOptionsMethod
+      - ReceivingOrderIdGetMethod
+      - ReceivingOrderIdPutMethod
+      - ReceivingOrderIdDeleteMethod
+      - ReceivingOrderIdOptionsMethod
+      - ReceiveActionPostMethod
+      - ReceiveActionOptionsMethod
+      - OrderStatusPutMethod
+      - OrderStatusOptionsMethod
+      - DocumentsVerifyPostMethod
+      - DocumentsVerifyOptionsMethod
+      - ReceivingItemsGetMethod
+      - ReceivingItemsOptionsMethod
+      - ReceivingItemIdGetMethod
+      - ReceivingItemIdPutMethod
+      - ReceivingItemIdOptionsMethod
+      - ReceivingItemsBatchPostMethod
+      - ReceivingItemsBatchOptionsMethod
+      - SuppliersGetMethod
+      - SuppliersPostMethod
+      - SuppliersOptionsMethod
+      - SupplierIdGetMethod
+      - SupplierIdPutMethod
+      - SupplierIdDeleteMethod
+      - SupplierIdOptionsMethod
+      - SupplierInboundHistoryGetMethod
+      - SupplierInboundHistoryOptionsMethod
+      - SupplierOutboundHistoryGetMethod
+      - SupplierOutboundHistoryOptionsMethod
+      - VerificationResultsGetMethod
+      - VerificationResultsOptionsMethod
+    Properties:
+      RestApiId: !Ref WMSAPI
+      StageName: !Ref EnvironmentType
+
+  # Lambda 함수에 API Gateway 권한 부여
+  DocumentServicePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref DocumentServiceFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WMSAPI}/*"
+
+  BinServicePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref BinServiceFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WMSAPI}/*"
+
+  ReceivingOrderPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ReceivingOrderFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WMSAPI}/*"
+
+  ReceivingItemPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ReceivingItemFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WMSAPI}/*"
+
+  SupplierPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref SupplierFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WMSAPI}/*"
+
+  VerificationPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref VerificationFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WMSAPI}/*"
+
+  # EventBridge 규칙에 대한 Lambda 권한
+  ReceivingCompletedRulePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref VerificationFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt ReceivingCompletedRule.Arn
+
+  DocumentUploadedRulePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref VerificationFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt DocumentUploadedRule.Arn
+
+  InspectionPassedRulePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref EventBridgeIntegrationFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt InspectionPassedRule.Arn
+
+Outputs:
+  DocumentServiceFunctionArn:
+    Description: ARN of the Document Service Lambda Function
+    Value: !GetAtt DocumentServiceFunction.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-DocumentServiceFunctionArn"
+
+  BinServiceFunctionArn:
+    Description: ARN of the Bin Service Lambda Function
+    Value: !GetAtt BinServiceFunction.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-BinServiceFunctionArn"
+
+  ReceivingOrderFunctionArn:
+    Description: ARN of the Receiving Order Service Lambda Function
+    Value: !GetAtt ReceivingOrderFunction.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-ReceivingOrderFunctionArn"
+
+  ReceivingItemFunctionArn:
+    Description: ARN of the Receiving Item Service Lambda Function
+    Value: !GetAtt ReceivingItemFunction.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-ReceivingItemFunctionArn"
+
+  SupplierFunctionArn:
+    Description: ARN of the Supplier Service Lambda Function
+    Value: !GetAtt SupplierFunction.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-SupplierFunctionArn"
+
+  VerificationFunctionArn:
+    Description: ARN of the Verification Service Lambda Function
+    Value: !GetAtt VerificationFunction.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-VerificationFunctionArn"
+
+  EventBridgeIntegrationFunctionArn:
+    Description: ARN of the EventBridge Integration Service Lambda Function
+    Value: !GetAtt EventBridgeIntegrationFunction.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-EventBridgeIntegrationFunctionArn"
+
+  ApiEndpoint:
+    Description: URL of the WMS API
+    Value: !Sub "https://${WMSAPI}.execute-api.${AWS::Region}.amazonaws.com/${EnvironmentType}"
+    Export:
+      Name: !Sub "${AWS::StackName}-ApiEndpoint"
+            
+  # 검증 결과 리소스 및 메서드
+  VerificationResultsResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref WMSAPI
+      ParentId: !GetAtt WMSAPI.RootResourceId
+      PathPart: "verification-results"
+
+  VerificationResultsGetMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref WMSAPI
+      ResourceId: !Ref VerificationResultsResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${VerificationFunction.Arn}/invocations"
+        
+  VerificationResultsOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref WMSAPI
+      ResourceId: !Ref VerificationResultsResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+            
+  # 공급업체 출고 이력 리소스 및 메서드
+  SupplierOutboundHistoryResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref WMSAPI
+      ParentId: !Ref SupplierIdResource
+      PathPart: "outbound-history"
+
+  SupplierOutboundHistoryGetMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref WMSAPI
+      ResourceId: !Ref SupplierOutboundHistoryResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SupplierFunction.Arn}/invocations"
+
+  SupplierOutboundHistoryOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref WMSAPI
+      ResourceId: !Ref SupplierOutboundHistoryResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+            
+  # 공급업체 입고 이력 리소스 및 메서드
+  SupplierInboundHistoryResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref WMSAPI
+      ParentId: !Ref SupplierIdResource
+      PathPart: "inbound-history"
+
+  SupplierInboundHistoryGetMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref WMSAPI
+      ResourceId: !Ref SupplierInboundHistoryResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SupplierFunction.Arn}/invocations"
+
+  SupplierInboundHistoryOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref WMSAPI
+      ResourceId: !Ref SupplierInboundHistoryResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+            
+  # 공급업체 ID 리소스 및 메서드
+  SupplierIdResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref WMSAPI
+      ParentId: !Ref SuppliersResource
+      PathPart: "{supplier_id}"
+
+  SupplierIdGetMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref WMSAPI
+      ResourceId: !Ref SupplierIdResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SupplierFunction.Arn}/invocations"
+
+  SupplierIdPutMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref WMSAPI
+      ResourceId: !Ref SupplierIdResource
+      HttpMethod: PUT
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SupplierFunction.Arn}/invocations"
+
+  SupplierIdDeleteMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref WMSAPI
+      ResourceId: !Ref SupplierIdResource
+      HttpMethod: DELETE
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SupplierFunction.Arn}/invocations"
+
+  SupplierIdOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref WMSAPI
+      ResourceId: !Ref SupplierIdResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,PUT,DELETE,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+            
+  # 공급업체 리소스 및 메서드
+  SuppliersResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref WMSAPI
+      ParentId: !GetAtt WMSAPI.RootResourceId
+      PathPart: "suppliers"
+
+  SuppliersGetMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref WMSAPI
+      ResourceId: !Ref SuppliersResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SupplierFunction.Arn}/invocations"
+
+  SuppliersPostMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref WMSAPI
+      ResourceId: !Ref SuppliersResource
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SupplierFunction.Arn}/invocations"
+  
+  SuppliersOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref WMSAPI
+      ResourceId: !Ref SuppliersResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # 입고 품목 일괄 추가 리소스 및 메서드
+  ReceivingItemsBatchResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref WMSAPI
+      ParentId: !Ref ReceivingItemsResource
+      PathPart: "batch"
+
+  ReceivingItemsBatchPostMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref WMSAPI
+      ResourceId: !Ref ReceivingItemsBatchResource
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ReceivingItemFunction.Arn}/invocations"
+
+  ReceivingItemsBatchOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref WMSAPI
+      ResourceId: !Ref ReceivingItemsBatchResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
   # 문서 ID 리소스 및 메서드
   DocumentIdResource:
     Type: AWS::ApiGateway::Resource
@@ -328,6 +798,30 @@ Resources:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
         Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${DocumentServiceFunction.Arn}/invocations"
+
+  DocumentIdOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref WMSAPI
+      ResourceId: !Ref DocumentIdResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,DELETE,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
 
   # 입고 주문 리소스 및 메서드
   ReceivingOrdersResource:
@@ -592,7 +1086,7 @@ Resources:
             method.response.header.Access-Control-Allow-Methods: true
             method.response.header.Access-Control-Allow-Origin: true
 
-  # 입고 품목 리소스 및 메서드 (추가)
+  # 입고 품목 리소스 및 메서드 (업데이트)
   ReceivingItemsResource:
     Type: AWS::ApiGateway::Resource
     Properties:
@@ -612,311 +1106,82 @@ Resources:
         IntegrationHttpMethod: POST
         Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ReceivingItemFunction.Arn}/invocations"
 
-  # 입고 품목 일괄 추가 리소스 및 메서드 (추가)
-  ReceivingItemsBatchResource:
+  ReceivingItemsOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref WMSAPI
+      ResourceId: !Ref ReceivingItemsResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # 입고 품목 ID 리소스 및 메서드 (신규)
+  ReceivingItemIdResource:
     Type: AWS::ApiGateway::Resource
     Properties:
       RestApiId: !Ref WMSAPI
       ParentId: !Ref ReceivingItemsResource
-      PathPart: "batch"
+      PathPart: "{item_id}"
 
-  ReceivingItemsBatchPostMethod:
+  ReceivingItemIdGetMethod:
     Type: AWS::ApiGateway::Method
     Properties:
       RestApiId: !Ref WMSAPI
-      ResourceId: !Ref ReceivingItemsBatchResource
-      HttpMethod: POST
+      ResourceId: !Ref ReceivingItemIdResource
+      HttpMethod: GET
       AuthorizationType: NONE
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
         Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ReceivingItemFunction.Arn}/invocations"
 
-  # 공급업체 리소스 및 메서드 (추가)
-  SuppliersResource:
-    Type: AWS::ApiGateway::Resource
-    Properties:
-      RestApiId: !Ref WMSAPI
-      ParentId: !GetAtt WMSAPI.RootResourceId
-      PathPart: "suppliers"
-
-  SuppliersGetMethod:
+  ReceivingItemIdPutMethod:
     Type: AWS::ApiGateway::Method
     Properties:
       RestApiId: !Ref WMSAPI
-      ResourceId: !Ref SuppliersResource
-      HttpMethod: GET
-      AuthorizationType: NONE
-      Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SupplierFunction.Arn}/invocations"
-
-  SuppliersPostMethod:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref WMSAPI
-      ResourceId: !Ref SuppliersResource
-      HttpMethod: POST
-      AuthorizationType: NONE
-      Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SupplierFunction.Arn}/invocations"
-
-  # 공급업체 ID 리소스 및 메서드 (추가)
-  SupplierIdResource:
-    Type: AWS::ApiGateway::Resource
-    Properties:
-      RestApiId: !Ref WMSAPI
-      ParentId: !Ref SuppliersResource
-      PathPart: "{supplier_id}"
-
-  SupplierIdGetMethod:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref WMSAPI
-      ResourceId: !Ref SupplierIdResource
-      HttpMethod: GET
-      AuthorizationType: NONE
-      Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SupplierFunction.Arn}/invocations"
-
-  SupplierIdPutMethod:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref WMSAPI
-      ResourceId: !Ref SupplierIdResource
+      ResourceId: !Ref ReceivingItemIdResource
       HttpMethod: PUT
       AuthorizationType: NONE
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
-        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SupplierFunction.Arn}/invocations"
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ReceivingItemFunction.Arn}/invocations"
 
-  SupplierIdDeleteMethod:
+  ReceivingItemIdOptionsMethod:
     Type: AWS::ApiGateway::Method
     Properties:
       RestApiId: !Ref WMSAPI
-      ResourceId: !Ref SupplierIdResource
-      HttpMethod: DELETE
+      ResourceId: !Ref ReceivingItemIdResource
+      HttpMethod: OPTIONS
       AuthorizationType: NONE
       Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SupplierFunction.Arn}/invocations"
-
-  # 공급업체 입고 이력 리소스 및 메서드 (추가)
-  SupplierInboundHistoryResource:
-    Type: AWS::ApiGateway::Resource
-    Properties:
-      RestApiId: !Ref WMSAPI
-      ParentId: !Ref SupplierIdResource
-      PathPart: "inbound-history"
-
-  SupplierInboundHistoryGetMethod:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref WMSAPI
-      ResourceId: !Ref SupplierInboundHistoryResource
-      HttpMethod: GET
-      AuthorizationType: NONE
-      Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SupplierFunction.Arn}/invocations"
-
-  # 공급업체 출고 이력 리소스 및 메서드 (추가)
-  SupplierOutboundHistoryResource:
-    Type: AWS::ApiGateway::Resource
-    Properties:
-      RestApiId: !Ref WMSAPI
-      ParentId: !Ref SupplierIdResource
-      PathPart: "outbound-history"
-
-  SupplierOutboundHistoryGetMethod:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref WMSAPI
-      ResourceId: !Ref SupplierOutboundHistoryResource
-      HttpMethod: GET
-      AuthorizationType: NONE
-      Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SupplierFunction.Arn}/invocations"
-
-  # 검증 결과 리소스 및 메서드 (추가)
-  VerificationResultsResource:
-    Type: AWS::ApiGateway::Resource
-    Properties:
-      RestApiId: !Ref WMSAPI
-      ParentId: !GetAtt WMSAPI.RootResourceId
-      PathPart: "verification-results"
-
-  VerificationResultsGetMethod:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref WMSAPI
-      ResourceId: !Ref VerificationResultsResource
-      HttpMethod: GET
-      AuthorizationType: NONE
-      Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${VerificationFunction.Arn}/invocations"
-
-  # API Gateway 배포
-  APIDeployment:
-    Type: AWS::ApiGateway::Deployment
-    DependsOn:
-      - DocumentsGetMethod
-      - DocumentsPostMethod
-      - DocumentIdGetMethod
-      - DocumentIdDeleteMethod
-      - ReceivingOrdersGetMethod
-      - ReceivingOrdersPostMethod
-      - ReceivingOrderIdGetMethod
-      - ReceivingOrderIdPutMethod
-      - ReceivingOrderIdDeleteMethod
-      - ReceiveActionPostMethod
-      - OrderStatusPutMethod
-      - DocumentsVerifyPostMethod
-      - ReceivingItemsGetMethod
-      - ReceivingItemsBatchPostMethod
-      - SuppliersGetMethod
-      - SuppliersPostMethod
-      - SupplierIdGetMethod
-      - SupplierIdPutMethod
-      - SupplierIdDeleteMethod
-      - SupplierInboundHistoryGetMethod
-      - SupplierOutboundHistoryGetMethod
-      - VerificationResultsGetMethod
-    Properties:
-      RestApiId: !Ref WMSAPI
-      StageName: !Ref EnvironmentType
-
-  # Lambda 함수에 API Gateway 권한 부여
-  DocumentServicePermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref DocumentServiceFunction
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WMSAPI}/*"
-
-  BinServicePermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref BinServiceFunction
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WMSAPI}/*"
-
-  ReceivingOrderPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref ReceivingOrderFunction
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WMSAPI}/*"
-
-  ReceivingItemPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref ReceivingItemFunction
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WMSAPI}/*"
-
-  SupplierPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref SupplierFunction
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WMSAPI}/*"
-
-  VerificationPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref VerificationFunction
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WMSAPI}/*"
-
-  # EventBridge 규칙에 대한 Lambda 권한
-  ReceivingCompletedRulePermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref VerificationFunction
-      Principal: events.amazonaws.com
-      SourceArn: !GetAtt ReceivingCompletedRule.Arn
-
-  DocumentUploadedRulePermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref VerificationFunction
-      Principal: events.amazonaws.com
-      SourceArn: !GetAtt DocumentUploadedRule.Arn
-
-  InspectionPassedRulePermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref EventBridgeIntegrationFunction
-      Principal: events.amazonaws.com
-      SourceArn: !GetAtt InspectionPassedRule.Arn
-
-Outputs:
-  DocumentServiceFunctionArn:
-    Description: ARN of the Document Service Lambda Function
-    Value: !GetAtt DocumentServiceFunction.Arn
-    Export:
-      Name: !Sub "${AWS::StackName}-DocumentServiceFunctionArn"
-
-  BinServiceFunctionArn:
-    Description: ARN of the Bin Service Lambda Function
-    Value: !GetAtt BinServiceFunction.Arn
-    Export:
-      Name: !Sub "${AWS::StackName}-BinServiceFunctionArn"
-
-  ReceivingOrderFunctionArn:
-    Description: ARN of the Receiving Order Service Lambda Function
-    Value: !GetAtt ReceivingOrderFunction.Arn
-    Export:
-      Name: !Sub "${AWS::StackName}-ReceivingOrderFunctionArn"
-
-  ReceivingItemFunctionArn:
-    Description: ARN of the Receiving Item Service Lambda Function
-    Value: !GetAtt ReceivingItemFunction.Arn
-    Export:
-      Name: !Sub "${AWS::StackName}-ReceivingItemFunctionArn"
-
-  SupplierFunctionArn:
-    Description: ARN of the Supplier Service Lambda Function
-    Value: !GetAtt SupplierFunction.Arn
-    Export:
-      Name: !Sub "${AWS::StackName}-SupplierFunctionArn"
-
-  VerificationFunctionArn:
-    Description: ARN of the Verification Service Lambda Function
-    Value: !GetAtt VerificationFunction.Arn
-    Export:
-      Name: !Sub "${AWS::StackName}-VerificationFunctionArn"
-
-  EventBridgeIntegrationFunctionArn:
-    Description: ARN of the EventBridge Integration Service Lambda Function
-    Value: !GetAtt EventBridgeIntegrationFunction.Arn
-    Export:
-      Name: !Sub "${AWS::StackName}-EventBridgeIntegrationFunctionArn"
-
-  ApiEndpoint:
-    Description: URL of the WMS API
-    Value: !Sub "https://${WMSAPI}.execute-api.${AWS::Region}.amazonaws.com/${EnvironmentType}"
-    Export:
-      Name: !Sub "${AWS::StackName}-ApiEndpoint"
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,PUT,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
