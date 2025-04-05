@@ -492,7 +492,13 @@ Resources:
       Principal: events.amazonaws.com
       SourceArn: !GetAtt DocumentUploadedRule.Arn
 
-Arn: !GetAtt InspectionPassedRule.Arn
+  InspectionPassedRulePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref EventBridgeIntegrationFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt InspectionPassedRule.Arn
             
   # 공급업체 출고 이력 리소스 메서드
   SupplierOutboundHistoryGetMethod:
