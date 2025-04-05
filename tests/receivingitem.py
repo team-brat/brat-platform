@@ -1,7 +1,7 @@
 import requests
 import json
 
-BASE_URL = "https://qh9g1unehb.execute-api.us-east-2.amazonaws.com/dev"
+BASE_URL = "https://zf42ytba0m.execute-api.us-east-2.amazonaws.com/dev"
 HEADERS = {'Content-Type': 'application/json'}
 
 def print_response(title, response):

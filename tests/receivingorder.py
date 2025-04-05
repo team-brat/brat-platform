@@ -3,7 +3,7 @@ import uuid
 import json
 from datetime import datetime
 
-API_BASE_URL = "https://qh9g1unehb.execute-api.us-east-2.amazonaws.com/dev"
+API_BASE_URL = "https://zf42ytba0m.execute-api.us-east-2.amazonaws.com/dev"
 RECEIVING_ORDERS_ENDPOINT = f"{API_BASE_URL}/receiving-orders"
 
 TEST_ORDER_ID = None

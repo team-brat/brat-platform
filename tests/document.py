@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 
 # API configuration
-API_URL = "https://qh9g1unehb.execute-api.us-east-2.amazonaws.com/dev"
+API_URL = "https://zf42ytba0m.execute-api.us-east-2.amazonaws.com/dev"
 DOCUMENT_ENDPOINT = f"{API_URL}/documents"
 
 # Create a test file if it doesn't exist
