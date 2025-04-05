@@ -327,7 +327,7 @@ def batch_add_items(event):
                 'item_id': item_id,
                 'order_id': order_id,
                 'product_name': item.get('product_name'),
-                'sku_number': item.get('sku_number', ''),
+                'sku_number': item.get('sku_number', 'UNKNOWN'),
                 'expected_qty': item.get('expected_qty'),
                 'serial_or_barcode': item.get('serial_or_barcode', ''),
                 'length': item.get('length', 0),
