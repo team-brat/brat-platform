@@ -98,7 +98,6 @@ def publish_event(event_detail, detail_type, source='wms.document-service'):
         print(f"Error publishing event: {str(e)}")
         return None
             'body': json.dumps({'message': f"Error: {str(e)}"}, cls=DecimalEncoder)
-        }
 
 def get_documents(event):
     """문서 목록 조회"""
