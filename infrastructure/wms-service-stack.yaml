@@ -611,26 +611,46 @@ Resources:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
         Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ReceivingItemFunction.Arn}/invocations"
-
-  # 입고 품목 일괄 추가 리소스 및 메서드 (추가)
-  ReceivingItemsBatchResource:
+  # /receiving-items/{item_id} 리소스 추가
+  ReceivingItemsItemIdResource:
     Type: AWS::ApiGateway::Resource
     Properties:
       RestApiId: !Ref WMSAPI
       ParentId: !Ref ReceivingItemsResource
-      PathPart: "batch"
+      PathPart: "{item_id}"  # 중요: 중괄호로 path parameter 명시
 
-  ReceivingItemsBatchPostMethod:
+  # GET /receiving-items/{item_id}
+  ReceivingItemsItemIdGetMethod:
     Type: AWS::ApiGateway::Method
     Properties:
       RestApiId: !Ref WMSAPI
-      ResourceId: !Ref ReceivingItemsBatchResource
-      HttpMethod: POST
+      ResourceId: !Ref ReceivingItemsItemIdResource
+      HttpMethod: GET
       AuthorizationType: NONE
+      RequestParameters:
+        method.request.path.item_id: true
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
-        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ReceivingItemFunction.Arn}/invocations"
+        Uri: !Sub >
+          arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ReceivingItemFunction.Arn}/invocations
+
+  # PUT /receiving-items/{item_id}
+  ReceivingItemsItemIdPutMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref WMSAPI
+      ResourceId: !Ref ReceivingItemsItemIdResource
+      HttpMethod: PUT
+      AuthorizationType: NONE
+      RequestParameters:
+        method.request.path.item_id: true
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub >
+          arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ReceivingItemFunction.Arn}/invocations
+
 
   # 공급업체 리소스 및 메서드 (추가)
   SuppliersResource:
