@@ -227,25 +227,23 @@ def update_supplier(event, supplier_id):
     """공급업체 업데이트"""
     try:
         body = json.loads(event.get('body', '{}'))
-        
-        # 기존 공급업체 조회
+
         table = dynamodb.Table(SUPPLIER_TABLE)
         response = table.get_item(Key={'supplier_id': supplier_id})
-        
+
         if 'Item' not in response:
             return {
                 'statusCode': 404,
                 'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
                 'body': json.dumps({'message': 'Supplier not found'}, cls=DecimalEncoder)
             }
-            
-        # 변경 항목 준비
+
         update_expression = "set updated_at = :time"
         expression_values = {
             ':time': int(datetime.now().timestamp())
         }
-        
-        # 업데이트 가능한 필드
+        expression_names = {}
+
         update_fields = {
             'supplier_name': 'sname',
             'contact_name': 'cname',
@@ -255,35 +253,41 @@ def update_supplier(event, supplier_id):
             'address': 'addr',
             'status': 'status'
         }
-        
+
         for field, short in update_fields.items():
             if field in body:
-                update_expression += f", {field} = :{short}"
-                expression_values[f':{short}'] = body[field]
-        
-        # DynamoDB 업데이트
-        table.update_item(
-            Key={'supplier_id': supplier_id},
-            UpdateExpression=update_expression,
-            ExpressionAttributeValues=expression_values,
-            ReturnValues="ALL_NEW"
-        )
+                # ✅ 예약어 처리
+                if field == 'status':
+                    update_expression += f", #status = :{short}"
+                    expression_names['#status'] = 'status'
+                else:
+                    update_expression += f", {field} = :{short}"
+                expression_values[f":{short}"] = body[field]
 
-        # 업데이트된 공급업체 조회
+        update_args = {
+            'Key': {'supplier_id': supplier_id},
+            'UpdateExpression': update_expression,
+            'ExpressionAttributeValues': expression_values,
+            'ReturnValues': "ALL_NEW"
+        }
+
+        if expression_names:
+            update_args['ExpressionAttributeNames'] = expression_names
+
+        table.update_item(**update_args)
+
         response = table.get_item(Key={'supplier_id': supplier_id})
         updated_supplier = response['Item']
-        
+
         return {
             'statusCode': 200,
-            'headers': {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
-            },
+            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
             'body': json.dumps({
                 'supplier': updated_supplier,
                 'message': 'Supplier updated successfully'
             }, cls=DecimalEncoder)
         }
+
     except Exception as e:
         print(f"Error updating supplier: {str(e)}")
         return {
