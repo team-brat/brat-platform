@@ -19,6 +19,15 @@ class DecimalEncoder(json.JSONEncoder):
             return float(obj)
         return super(DecimalEncoder, self).default(obj)
 
+# 공통 CORS 헤더 정의
+def get_cors_headers():
+    return {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'
+    }
+
 def lambda_handler(event, context):
     """입고 품목 관리 Lambda 핸들러"""
     try:
@@ -50,12 +59,7 @@ def lambda_handler(event, context):
             # 기본 응답
             return {
                 'statusCode': 404,
-                'headers': {
-                    'Content-Type': 'application/json',
-                    'Access-Control-Allow-Origin': '*',
-                    'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
-                    'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'
-                },
+                'headers': get_cors_headers(),
                 'body': json.dumps({
                     'message': 'Endpoint not found',
                     'path': path,
@@ -66,12 +70,7 @@ def lambda_handler(event, context):
         # 직접 호출
         return {
             'statusCode': 200,
-            'headers': {
-                    'Content-Type': 'application/json',
-                    'Access-Control-Allow-Origin': '*',
-                    'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
-                    'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'
-                },
+            'headers': get_cors_headers(),
             'body': json.dumps({
                 'message': 'Receiving item service executed directly',
                 'event': event
@@ -82,12 +81,7 @@ def lambda_handler(event, context):
         print(f"Error: {str(e)}")
         return {
             'statusCode': 500,
-            'headers': {
-                    'Content-Type': 'application/json',
-                    'Access-Control-Allow-Origin': '*',
-                    'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
-                    'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'
-                },
+            'headers': get_cors_headers(),
             'body': json.dumps({'message': f"Error: {str(e)}"}, cls=DecimalEncoder)
         }
 
@@ -101,7 +95,7 @@ def get_items_by_order(order_id):
         if 'Item' not in order_response:
             return {
                 'statusCode': 404,
-                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'headers': get_cors_headers(),
                 'body': json.dumps({'message': 'Receiving order not found'}, cls=DecimalEncoder)
             }
         
@@ -121,10 +115,7 @@ def get_items_by_order(order_id):
         
         return {
             'statusCode': 200,
-            'headers': {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
-            },
+            'headers': get_cors_headers(),
             'body': json.dumps({
                 'items': items,
                 'count': len(items)
@@ -134,7 +125,7 @@ def get_items_by_order(order_id):
         print(f"Error getting items by order: {str(e)}")
         return {
             'statusCode': 500,
-            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'headers': get_cors_headers(),
             'body': json.dumps({'message': f"Error getting items by order: {str(e)}"}, cls=DecimalEncoder)
         }
 
@@ -152,7 +143,7 @@ def get_item(item_id):
         if 'Item' not in response:
             return {
                 'statusCode': 404,
-                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'headers': get_cors_headers(),
                 'body': json.dumps({'message': 'Item not found'}, cls=DecimalEncoder)
             }
             
@@ -160,17 +151,14 @@ def get_item(item_id):
         
         return {
             'statusCode': 200,
-            'headers': {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
-            },
+            'headers': get_cors_headers(),
             'body': json.dumps(item, cls=DecimalEncoder)
         }
     except Exception as e:
         print(f"Error getting item: {str(e)}")
         return {
             'statusCode': 500,
-            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'headers': get_cors_headers(),
             'body': json.dumps({'message': f"Error getting item: {str(e)}"}, cls=DecimalEncoder)
         }
 
@@ -186,7 +174,7 @@ def update_item(event, item_id):
         if 'Item' not in response:
             return {
                 'statusCode': 404,
-                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'headers': get_cors_headers(),
                 'body': json.dumps({'message': 'Item not found'}, cls=DecimalEncoder)
             }
             
@@ -200,7 +188,7 @@ def update_item(event, item_id):
         if 'Item' not in order_response:
             return {
                 'statusCode': 404,
-                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'headers': get_cors_headers(),
                 'body': json.dumps({'message': 'Associated order not found'}, cls=DecimalEncoder)
             }
             
@@ -210,7 +198,7 @@ def update_item(event, item_id):
         if existing_order.get('status') in ['COMPLETED', 'CANCELLED', 'DELETED']:
             return {
                 'statusCode': 400,
-                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'headers': get_cors_headers(),
                 'body': json.dumps({'message': f'Cannot update item for order in {existing_order.get("status")} status'}, cls=DecimalEncoder)
             }
             
@@ -255,10 +243,7 @@ def update_item(event, item_id):
         
         return {
             'statusCode': 200,
-            'headers': {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
-            },
+            'headers': get_cors_headers(),
             'body': json.dumps({
                 'item': updated_item,
                 'message': 'Item updated successfully'
@@ -268,7 +253,7 @@ def update_item(event, item_id):
         print(f"Error updating item: {str(e)}")
         return {
             'statusCode': 500,
-            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'headers': get_cors_headers(),
             'body': json.dumps({'message': f"Error updating item: {str(e)}"}, cls=DecimalEncoder)
         }
 
@@ -284,7 +269,7 @@ def batch_add_items(event):
         if missing_fields:
             return {
                 'statusCode': 400,
-                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'headers': get_cors_headers(),
                 'body': json.dumps({'message': f'Missing required fields: {", ".join(missing_fields)}'}, cls=DecimalEncoder)
             }
             
@@ -294,7 +279,7 @@ def batch_add_items(event):
         if not isinstance(items, list) or len(items) == 0:
             return {
                 'statusCode': 400,
-                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'headers': get_cors_headers(),
                 'body': json.dumps({'message': 'Items must be a non-empty array'}, cls=DecimalEncoder)
             }
             
@@ -305,7 +290,7 @@ def batch_add_items(event):
         if 'Item' not in order_response:
             return {
                 'statusCode': 404,
-                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'headers': get_cors_headers(),
                 'body': json.dumps({'message': 'Receiving order not found'}, cls=DecimalEncoder)
             }
             
@@ -315,7 +300,7 @@ def batch_add_items(event):
         if existing_order.get('status') in ['COMPLETED', 'CANCELLED', 'DELETED']:
             return {
                 'statusCode': 400,
-                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'headers': get_cors_headers(),
                 'body': json.dumps({'message': f'Cannot add items to order in {existing_order.get("status")} status'}, cls=DecimalEncoder)
             }
             
@@ -331,7 +316,7 @@ def batch_add_items(event):
             if not all(k in item for k in ['product_name', 'expected_qty']):
                 return {
                     'statusCode': 400,
-                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'headers': get_cors_headers(),
                     'body': json.dumps({'message': 'Each item must have product_name and expected_qty'}, cls=DecimalEncoder)
                 }
                 
@@ -360,10 +345,7 @@ def batch_add_items(event):
         
         return {
             'statusCode': 201,
-            'headers': {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
-            },
+            'headers': get_cors_headers(),
             'body': json.dumps({
                 'items': added_items,
                 'count': len(added_items),
@@ -374,6 +356,6 @@ def batch_add_items(event):
         print(f"Error adding items: {str(e)}")
         return {
             'statusCode': 500,
-            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'headers': get_cors_headers(),
             'body': json.dumps({'message': f"Error adding items: {str(e)}"}, cls=DecimalEncoder)
         }
