@@ -25,7 +25,8 @@ class DecimalEncoder(json.JSONEncoder):
 # 공통 헤더
 COMMON_HEADERS = {
     'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Origin': 'http://localhost:3000',  # 와일드카드(*) 금지
+    'Access-Control-Allow-Credentials': 'true',    
     'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'
 }
