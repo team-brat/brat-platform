@@ -46,6 +46,12 @@ def lambda_handler(event, context):
             # 기타 이벤트 처리
             return {
                 'statusCode': 200,
+                'headers': {
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*',
+                    'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+                    'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'
+                },
                 'body': json.dumps({
                     'message': f'Processed {source} {detail_type} event',
                     'detail': detail
@@ -62,6 +68,12 @@ def lambda_handler(event, context):
         # 직접 호출
         return {
             'statusCode': 200,
+            'headers': {
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*',
+                    'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+                    'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'
+                },
             'body': json.dumps({
                 'message': 'EventBridge integration service executed directly',
                 'event': event
@@ -72,6 +84,12 @@ def lambda_handler(event, context):
         print(f"Error: {str(e)}")
         return {
             'statusCode': 500,
+            'headers': {
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*',
+                    'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+                    'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'
+                },
             'body': json.dumps({'message': f"Error: {str(e)}"}, cls=DecimalEncoder)
         }
 

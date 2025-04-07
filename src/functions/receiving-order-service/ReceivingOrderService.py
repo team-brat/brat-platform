@@ -65,7 +65,9 @@ def lambda_handler(event, context):
                 'statusCode': 404,
                 'headers': {
                     'Content-Type': 'application/json',
-                    'Access-Control-Allow-Origin': '*'
+                    'Access-Control-Allow-Origin': '*',
+                    'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+                    'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'
                 },
                 'body': json.dumps({
                     'message': 'Endpoint not found',
@@ -77,17 +79,28 @@ def lambda_handler(event, context):
         # 직접 호출
         return {
             'statusCode': 200,
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+                'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'
+            },
             'body': json.dumps({
                 'message': 'Receiving order service executed directly',
                 'event': event
             }, cls=DecimalEncoder)
-        }
-            
+        }  
+
     except Exception as e:
         print(f"Error: {str(e)}")
         return {
             'statusCode': 500,
-            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+                'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'
+            },
             'body': json.dumps({'message': f"Error: {str(e)}"}, cls=DecimalEncoder)
         }
 
