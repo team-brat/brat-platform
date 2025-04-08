@@ -14,6 +14,15 @@ RECEIVING_ORDER_TABLE = os.environ.get('RECEIVING_ORDER_TABLE')
 RECEIVING_ITEM_TABLE = os.environ.get('RECEIVING_ITEM_TABLE')
 RECEIVING_HISTORY_TABLE = os.environ.get('RECEIVING_HISTORY_TABLE')
 
+# 표준 응답 헤더
+COMMON_HEADERS = {
+    'Content-Type': 'application/json',
+    'Access-Control-Allow-Origin': 'http://localhost:3000',
+    'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
+    'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+    'Access-Control-Allow-Credentials': 'true'
+}
+
 # JSON 인코더 클래스 정의
 class DecimalEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -63,12 +72,7 @@ def lambda_handler(event, context):
             # 기본 응답
             return {
                 'statusCode': 404,
-                'headers': {
-                    'Content-Type': 'application/json',
-                    'Access-Control-Allow-Origin': '*',
-                    'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
-                    'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'
-                },
+                'headers': COMMON_HEADERS,
                 'body': json.dumps({
                     'message': 'Endpoint not found',
                     'path': path,
@@ -79,30 +83,37 @@ def lambda_handler(event, context):
         # 직접 호출
         return {
             'statusCode': 200,
-            'headers': {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
-                'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'
-            },
             'body': json.dumps({
                 'message': 'Receiving order service executed directly',
                 'event': event
             }, cls=DecimalEncoder)
-        }  
-
+        }
+            
     except Exception as e:
         print(f"Error: {str(e)}")
         return {
             'statusCode': 500,
-            'headers': {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
-                'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'
-            },
+            'headers': COMMON_HEADERS,
             'body': json.dumps({'message': f"Error: {str(e)}"}, cls=DecimalEncoder)
         }
+
+def publish_event(event_detail, detail_type, source='wms.receiving-service'):
+    """EventBridge에 이벤트 발행"""
+    try:
+        response = events.put_events(
+            Entries=[
+                {
+                    'Source': source,
+                    'DetailType': detail_type,
+                    'Detail': json.dumps(event_detail, cls=DecimalEncoder)
+                }
+            ]
+        )
+        print(f"Event published: {response}")
+        return response
+    except Exception as e:
+        print(f"Error publishing event: {str(e)}")
+        return None
 
 def create_receiving_order(event):
     """입고 주문 생성"""
@@ -116,7 +127,7 @@ def create_receiving_order(event):
         if missing_fields:
             return {
                 'statusCode': 400,
-                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'headers': COMMON_HEADERS,
                 'body': json.dumps({'message': f'Missing required fields: {", ".join(missing_fields)}'}, cls=DecimalEncoder)
             }
         
@@ -131,7 +142,7 @@ def create_receiving_order(event):
         except (ValueError, TypeError):
             return {
                 'statusCode': 400,
-                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'headers': COMMON_HEADERS,
                 'body': json.dumps({'message': 'Invalid scheduled_date format. Use ISO format (YYYY-MM-DDTHH:MM:SS)'}, cls=DecimalEncoder)
             }
         
@@ -204,10 +215,7 @@ def create_receiving_order(event):
         
         return {
             'statusCode': 201,
-            'headers': {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
-            },
+            'headers': COMMON_HEADERS,
             'body': json.dumps({
                 'order': order_data,
                 'message': 'Receiving order created successfully'
@@ -217,7 +225,7 @@ def create_receiving_order(event):
         print(f"Error creating receiving order: {str(e)}")
         return {
             'statusCode': 500,
-            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'headers': COMMON_HEADERS,
             'body': json.dumps({'message': f"Error creating receiving order: {str(e)}"}, cls=DecimalEncoder)
         }
 
@@ -234,7 +242,7 @@ def process_receiving(event, order_id):
         if 'Item' not in response:
             return {
                 'statusCode': 404,
-                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'headers': COMMON_HEADERS,
                 'body': json.dumps({'message': 'Receiving order not found'}, cls=DecimalEncoder)
             }
             
@@ -244,7 +252,7 @@ def process_receiving(event, order_id):
         if existing_order.get('status') in ['CANCELLED', 'DELETED']:
             return {
                 'statusCode': 400,
-                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'headers': COMMON_HEADERS,
                 'body': json.dumps({'message': 'Cannot process a cancelled or deleted receiving order'}, cls=DecimalEncoder)
             }
             
@@ -252,7 +260,7 @@ def process_receiving(event, order_id):
         if existing_order.get('status') == 'COMPLETED':
             return {
                 'statusCode': 400,
-                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'headers': COMMON_HEADERS,
                 'body': json.dumps({'message': 'Receiving order has already been completed'}, cls=DecimalEncoder)
             }
             
@@ -303,10 +311,7 @@ def process_receiving(event, order_id):
         
         return {
             'statusCode': 200,
-            'headers': {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
-            },
+            'headers': COMMON_HEADERS,
             'body': json.dumps({
                 'order_id': order_id,
                 'status': 'COMPLETED',
@@ -318,7 +323,7 @@ def process_receiving(event, order_id):
         print(f"Error processing receiving: {str(e)}")
         return {
             'statusCode': 500,
-            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'headers': COMMON_HEADERS,
             'body': json.dumps({'message': f"Error processing receiving: {str(e)}"}, cls=DecimalEncoder)
         }
 
@@ -331,7 +336,7 @@ def update_order_status(event, order_id):
         if not new_status:
             return {
                 'statusCode': 400,
-                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'headers': COMMON_HEADERS,
                 'body': json.dumps({'message': 'Status is required'}, cls=DecimalEncoder)
             }
             
@@ -339,7 +344,7 @@ def update_order_status(event, order_id):
         if new_status not in valid_statuses:
             return {
                 'statusCode': 400,
-                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'headers': COMMON_HEADERS,
                 'body': json.dumps({'message': f'Invalid status. Must be one of: {", ".join(valid_statuses)}'}, cls=DecimalEncoder)
             }
         
@@ -350,7 +355,7 @@ def update_order_status(event, order_id):
         if 'Item' not in response:
             return {
                 'statusCode': 404,
-                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'headers': COMMON_HEADERS,
                 'body': json.dumps({'message': 'Receiving order not found'}, cls=DecimalEncoder)
             }
             
@@ -361,7 +366,7 @@ def update_order_status(event, order_id):
         if previous_status == 'DELETED':
             return {
                 'statusCode': 400,
-                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'headers': COMMON_HEADERS,
                 'body': json.dumps({'message': 'Cannot update status of a deleted order'}, cls=DecimalEncoder)
             }
             
@@ -404,10 +409,7 @@ def update_order_status(event, order_id):
         
         return {
             'statusCode': 200,
-            'headers': {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
-            },
+            'headers': COMMON_HEADERS,
             'body': json.dumps({
                 'order_id': order_id,
                 'previous_status': previous_status,
@@ -419,27 +421,9 @@ def update_order_status(event, order_id):
         print(f"Error updating order status: {str(e)}")
         return {
             'statusCode': 500,
-            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'headers': COMMON_HEADERS,
             'body': json.dumps({'message': f"Error updating order status: {str(e)}"}, cls=DecimalEncoder)
         }
-
-def publish_event(event_detail, detail_type, source='wms.receiving-service'):
-    """EventBridge에 이벤트 발행"""
-    try:
-        response = events.put_events(
-            Entries=[
-                {
-                    'Source': source,
-                    'DetailType': detail_type,
-                    'Detail': json.dumps(event_detail, cls=DecimalEncoder)
-                }
-            ]
-        )
-        print(f"Event published: {response}")
-        return response
-    except Exception as e:
-        print(f"Error publishing event: {str(e)}")
-        return None
 
 ###################### 예전 함수들 ##########################
 def update_receiving_order(event, order_id):
@@ -454,7 +438,7 @@ def update_receiving_order(event, order_id):
         if 'Item' not in response:
             return {
                 'statusCode': 404,
-                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'headers': COMMON_HEADERS,
                 'body': json.dumps({'message': 'Receiving order not found'}, cls=DecimalEncoder)
             }
             
@@ -464,7 +448,7 @@ def update_receiving_order(event, order_id):
         if existing_order.get('status') == 'COMPLETED':
             return {
                 'statusCode': 400,
-                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'headers': COMMON_HEADERS,
                 'body': json.dumps({'message': 'Cannot update a completed receiving order'}, cls=DecimalEncoder)
             }
             
@@ -484,7 +468,7 @@ def update_receiving_order(event, order_id):
             except (ValueError, TypeError):
                 return {
                     'statusCode': 400,
-                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'headers': COMMON_HEADERS,
                     'body': json.dumps({'message': 'Invalid scheduled_date format. Use ISO format (YYYY-MM-DDTHH:MM:SS)'}, cls=DecimalEncoder)
                 }
         
@@ -494,7 +478,7 @@ def update_receiving_order(event, order_id):
             if body['status'] not in valid_statuses:
                 return {
                     'statusCode': 400,
-                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'headers': COMMON_HEADERS,
                     'body': json.dumps({'message': f'Invalid status. Must be one of: {", ".join(valid_statuses)}'}, cls=DecimalEncoder)
                 }
             update_expression += ", #status = :status"
@@ -522,7 +506,7 @@ def update_receiving_order(event, order_id):
             if not isinstance(items, list) or len(items) == 0:
                 return {
                     'statusCode': 400,
-                    'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                    'headers': COMMON_HEADERS,
                     'body': json.dumps({'message': 'Items must be a non-empty array'}, cls=DecimalEncoder)
                 }
                 
@@ -530,7 +514,7 @@ def update_receiving_order(event, order_id):
                 if not all(k in item for k in ['item_id', 'product_name', 'expected_qty']):
                     return {
                         'statusCode': 400,
-                        'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                        'headers': COMMON_HEADERS,
                         'body': json.dumps({'message': 'Each item must have item_id, product_name, and expected_qty'}, cls=DecimalEncoder)
                     }
             
@@ -564,10 +548,7 @@ def update_receiving_order(event, order_id):
             
         return {
             'statusCode': 200,
-            'headers': {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
-            },
+            'headers': COMMON_HEADERS,
             'body': json.dumps({
                 'order': updated_order,
                 'message': 'Receiving completed successfully'
@@ -578,7 +559,7 @@ def update_receiving_order(event, order_id):
         print(f"Error updating receiving order: {str(e)}")
         return {
             'statusCode': 500,
-            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'headers': COMMON_HEADERS,
             'body': json.dumps({'message': f"Error updating receiving order: {str(e)}"}, cls=DecimalEncoder)
         }
 
@@ -593,7 +574,7 @@ def delete_receiving_order(order_id):
         if 'Item' not in response:
             return {
                 'statusCode': 404,
-                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'headers': COMMON_HEADERS,
                 'body': json.dumps({'message': 'Receiving order not found'}, cls=DecimalEncoder)
             }
             
@@ -603,7 +584,7 @@ def delete_receiving_order(order_id):
         if existing_order.get('status') == 'COMPLETED':
             return {
                 'statusCode': 400,
-                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'headers': COMMON_HEADERS,
                 'body': json.dumps({'message': 'Cannot delete a completed receiving order'}, cls=DecimalEncoder)
             }
         
@@ -620,14 +601,14 @@ def delete_receiving_order(order_id):
         
         return {
             'statusCode': 200,
-            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'headers': COMMON_HEADERS,
             'body': json.dumps({'message': 'Receiving order deleted successfully'}, cls=DecimalEncoder)
         }
     except Exception as e:
         print(f"Error deleting receiving order: {str(e)}")
         return {
             'statusCode': 500,
-            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'headers': COMMON_HEADERS,
             'body': json.dumps({'message': f"Error deleting receiving order: {str(e)}"}, cls=DecimalEncoder)
         }
 
@@ -705,10 +686,7 @@ def get_receiving_orders(event):
         
         return {
             'statusCode': 200,
-            'headers': {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
-            },
+            'headers': COMMON_HEADERS,
             'body': json.dumps({
                 'orders': items,
                 'count': len(items)
@@ -718,7 +696,7 @@ def get_receiving_orders(event):
         print(f"Error getting receiving orders: {str(e)}")
         return {
             'statusCode': 500,
-            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'headers': COMMON_HEADERS,
             'body': json.dumps({'message': f"Error getting receiving orders: {str(e)}"}, cls=DecimalEncoder)
         }
 
@@ -736,7 +714,7 @@ def get_receiving_order(order_id):
         if 'Item' not in response:
             return {
                 'statusCode': 404,
-                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'headers': COMMON_HEADERS,
                 'body': json.dumps({'message': 'Receiving order not found'}, cls=DecimalEncoder)
             }
             
@@ -752,16 +730,13 @@ def get_receiving_order(order_id):
         
         return {
             'statusCode': 200,
-            'headers': {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
-            },
+            'headers': COMMON_HEADERS,
             'body': json.dumps(order, cls=DecimalEncoder)
         }
     except Exception as e:
         print(f"Error getting receiving order: {str(e)}")
         return {
             'statusCode': 500,
-            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'headers': COMMON_HEADERS,
             'body': json.dumps({'message': f"Error getting receiving order: {str(e)}"}, cls=DecimalEncoder)
         }
