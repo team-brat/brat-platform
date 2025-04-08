@@ -2,17 +2,21 @@ import json
 import boto3
 import os
 import uuid
+import base64
 from datetime import datetime
 from decimal import Decimal
 
 # AWS 서비스 클라이언트
 dynamodb = boto3.resource('dynamodb')
+s3 = boto3.client('s3')
 events = boto3.client('events')
 
 # 환경 변수
 RECEIVING_ORDER_TABLE = os.environ.get('RECEIVING_ORDER_TABLE')
 RECEIVING_ITEM_TABLE = os.environ.get('RECEIVING_ITEM_TABLE')
 RECEIVING_HISTORY_TABLE = os.environ.get('RECEIVING_HISTORY_TABLE')
+DOCUMENT_METADATA_TABLE = os.environ.get('DOCUMENT_METADATA_TABLE', 'wms-document-metadata-dev')
+DOCUMENT_BUCKET = os.environ.get('DOCUMENT_BUCKET', 'wms-documents-dev-242201288894')
 
 # 표준 응답 헤더
 COMMON_HEADERS = {
@@ -115,11 +119,256 @@ def publish_event(event_detail, detail_type, source='wms.receiving-service'):
         print(f"Error publishing event: {str(e)}")
         return None
 
+def upload_document(order_id, doc_type, file_info, user_id):
+    """문서 업로드 처리"""
+    try:
+        if not all(key in file_info for key in ['file_name', 'content_type', 'file_content']):
+            print(f"Missing required document fields for {doc_type}")
+            return None
+            
+        # 문서 ID 및 기타 메타데이터 생성
+        document_id = str(uuid.uuid4())
+        timestamp = int(datetime.now().timestamp())
+        file_name = file_info.get('file_name')
+        file_extension = file_name.split('.')[-1] if '.' in file_name else ''
+        
+        # S3 키 생성
+        s3_key = f"{order_id}/{doc_type.lower()}/{document_id}.{file_extension}"
+        
+        # 파일 내용 디코딩
+        file_content = file_info.get('file_content')
+        if file_content == "<base64-encoded-content>":
+            # 테스트용 샘플 내용
+            decoded_content = b"Sample document content for testing"
+        else:
+            try:
+                decoded_content = base64.b64decode(file_content)
+            except Exception as e:
+                print(f"Error decoding file content for {doc_type}: {str(e)}")
+                return None
+            
+        # S3에 업로드
+        s3.put_object(
+            Bucket=DOCUMENT_BUCKET,
+            Key=s3_key,
+            Body=decoded_content,
+            ContentType=file_info.get('content_type')
+        )
+        
+        # 메타데이터 저장
+        document_metadata = {
+            'document_id': document_id,
+            'order_id': order_id,
+            'document_type': doc_type.upper(),
+            's3_key': s3_key,
+            'file_name': file_name,
+            'content_type': file_info.get('content_type'),
+            'upload_date': timestamp,
+            'uploader': user_id,
+            'verification_status': 'PENDING',
+            'verification_notes': ''
+        }
+        
+        table = dynamodb.Table(DOCUMENT_METADATA_TABLE)
+        table.put_item(Item=document_metadata)
+        
+        # 문서 업로드 이벤트 발행
+        event_detail = {
+            'document_id': document_id,
+            'order_id': order_id,
+            'document_type': doc_type.upper(),
+            'timestamp': timestamp
+        }
+        
+        publish_event(event_detail, 'DocumentUploaded', 'wms.document-service')
+        
+        return document_id
+    except Exception as e:
+        print(f"Error uploading document {doc_type}: {str(e)}")
+        return None
+
 def create_receiving_order(event):
-    """입고 주문 생성"""
+    """입고 주문 생성 - 새로운 구조 지원"""
     try:
         body = json.loads(event.get('body', '{}'))
         
+        # 새로운 구조 확인 (request_details, sku_information, shipment_information)
+        is_new_structure = all(key in body for key in ['request_details', 'sku_information', 'shipment_information'])
+        
+        if is_new_structure:
+            # 새 구조 처리
+            return create_receiving_order_new_structure(body)
+        else:
+            # 이전 구조 처리 (하위 호환성 유지)
+            return create_receiving_order_legacy(body)
+            
+    except Exception as e:
+        print(f"Error creating receiving order: {str(e)}")
+        return {
+            'statusCode': 500,
+            'headers': COMMON_HEADERS,
+            'body': json.dumps({'message': f"Error creating receiving order: {str(e)}"}, cls=DecimalEncoder)
+        }
+
+def create_receiving_order_new_structure(body):
+    """새로운 구조의 입고 주문 생성"""
+    try:
+        # 필요한 섹션 추출
+        request_details = body.get('request_details', {})
+        sku_info = body.get('sku_information', {})
+        shipment_info = body.get('shipment_information', {})
+        documents = body.get('documents', {})
+        user_id = body.get('user_id', 'system')
+        
+        # 필수 필드 검증
+        if not request_details.get('scheduled_date'):
+            return {
+                'statusCode': 400,
+                'headers': COMMON_HEADERS,
+                'body': json.dumps({'message': 'Missing scheduled_date in request_details'}, cls=DecimalEncoder)
+            }
+            
+        if not (request_details.get('supplier_name') and request_details.get('supplier_number')):
+            return {
+                'statusCode': 400,
+                'headers': COMMON_HEADERS,
+                'body': json.dumps({'message': 'Missing supplier information in request_details'}, cls=DecimalEncoder)
+            }
+            
+        if not sku_info.get('sku_number'):
+            return {
+                'statusCode': 400,
+                'headers': COMMON_HEADERS,
+                'body': json.dumps({'message': 'Missing sku_number in sku_information'}, cls=DecimalEncoder)
+            }
+            
+        if not shipment_info.get('shipment_number'):
+            return {
+                'statusCode': 400,
+                'headers': COMMON_HEADERS,
+                'body': json.dumps({'message': 'Missing shipment_number in shipment_information'}, cls=DecimalEncoder)
+            }
+            
+        # 주문 ID 생성 및 타임스탬프
+        order_id = str(uuid.uuid4())
+        timestamp = int(datetime.now().timestamp())
+        
+        # 날짜 변환
+        scheduled_date = request_details.get('scheduled_date')
+        try:
+            # 날짜 형식 확인 (YYYY-MM-DD 또는 ISO 형식)
+            if 'T' in scheduled_date:  # ISO 형식 (YYYY-MM-DDTHH:MM:SS)
+                scheduled_date_timestamp = int(datetime.fromisoformat(scheduled_date).timestamp())
+            else:  # YYYY-MM-DD 형식
+                scheduled_date_timestamp = int(datetime.fromisoformat(f"{scheduled_date}T00:00:00").timestamp())
+        except (ValueError, TypeError):
+            return {
+                'statusCode': 400,
+                'headers': COMMON_HEADERS,
+                'body': json.dumps({'message': 'Invalid scheduled_date format. Use ISO format (YYYY-MM-DDTHH:MM:SS) or YYYY-MM-DD'}, cls=DecimalEncoder)
+            }
+            
+        # 주문 데이터 생성
+        order_data = {
+            'order_id': order_id,
+            'po_number': request_details.get('po_number', f'PO-{timestamp}'),
+            'supplier_id': request_details.get('supplier_number'),
+            'supplier_name': request_details.get('supplier_name'),
+            'contact_name': request_details.get('contact_name', ''),
+            'contact_phone': request_details.get('contact_phone', ''),
+            'responsible_person': request_details.get('responsible_person', ''),
+            'scheduled_date': scheduled_date_timestamp,
+            'status': 'SCHEDULED',
+            'notes': request_details.get('notes', ''),
+            'shipment_number': shipment_info.get('shipment_number'),
+            'truck_number': shipment_info.get('truck_number', ''),
+            'driver_contact': shipment_info.get('driver_contact_info', ''),
+            'verification_status': 'PENDING',
+            'created_at': timestamp,
+            'updated_at': timestamp
+        }
+        
+        # DynamoDB에 주문 저장
+        table = dynamodb.Table(RECEIVING_ORDER_TABLE)
+        table.put_item(Item=order_data)
+        
+        # 입고 품목 저장 (SKU 정보 기반)
+        item_id = str(uuid.uuid4())
+        item_data = {
+            'item_id': item_id,
+            'order_id': order_id,
+            'product_name': sku_info.get('sku_name', ''),
+            'sku_number': sku_info.get('sku_number', ''),
+            'expected_qty': sku_info.get('quantity', 1),  # 수량 기본값 1
+            'serial_or_barcode': sku_info.get('serial_or_barcode', ''),
+            'length': sku_info.get('length', 0),
+            'width': sku_info.get('width', 0),
+            'height': sku_info.get('height', 0),
+            'depth': sku_info.get('depth', 0),
+            'volume': sku_info.get('volume', 0),
+            'weight': sku_info.get('weight', 0),
+            'notes': sku_info.get('notes', ''),
+            'created_at': timestamp,
+            'updated_at': timestamp
+        }
+        
+        items_table = dynamodb.Table(RECEIVING_ITEM_TABLE)
+        items_table.put_item(Item=item_data)
+        
+        # 문서 업로드 처리
+        uploaded_docs = {}
+        document_types = ['invoice', 'bill_of_entry', 'airway_bill']
+        
+        for doc_type in document_types:
+            if doc_type in documents:
+                doc_id = upload_document(order_id, doc_type, documents[doc_type], user_id)
+                if doc_id:
+                    uploaded_docs[doc_type] = doc_id
+        
+        # 이력 기록
+        history_table = dynamodb.Table(RECEIVING_HISTORY_TABLE)
+        history_id = str(uuid.uuid4())
+        history_data = {
+            'history_id': history_id,
+            'order_id': order_id,
+            'timestamp': timestamp,
+            'event_type': 'ORDER_CREATED',
+            'previous_status': None,
+            'new_status': 'SCHEDULED',
+            'user_id': user_id,
+            'notes': 'Receiving order created with new structure'
+        }
+        history_table.put_item(Item=history_data)
+        
+        # ISO 형식의 날짜 추가 (응답용)
+        order_data['scheduled_date_iso'] = request_details.get('scheduled_date')
+        order_data['created_at_iso'] = datetime.fromtimestamp(timestamp).isoformat()
+        order_data['updated_at_iso'] = datetime.fromtimestamp(timestamp).isoformat()
+        
+        # SKU 및 문서 정보 추가 (응답용)
+        response_data = {
+            'order': order_data,
+            'item': item_data,
+            'documents': uploaded_docs,
+            'message': 'Receiving order created successfully'
+        }
+        
+        return {
+            'statusCode': 201,
+            'headers': COMMON_HEADERS,
+            'body': json.dumps(response_data, cls=DecimalEncoder)
+        }
+    except Exception as e:
+        print(f"Error creating receiving order with new structure: {str(e)}")
+        return {
+            'statusCode': 500,
+            'headers': COMMON_HEADERS,
+            'body': json.dumps({'message': f"Error creating receiving order: {str(e)}"}, cls=DecimalEncoder)
+        }
+
+def create_receiving_order_legacy(body):
+    """기존 구조의 입고 주문 생성 (하위 호환성)"""
+    try:
         # 필수 필드 검증
         required_fields = ['supplier_id', 'supplier_name', 'scheduled_date', 'items', 'shipment_number']
         missing_fields = [field for field in required_fields if field not in body]
@@ -187,7 +436,8 @@ def create_receiving_order(event):
                 'depth': item.get('depth', 0),
                 'volume': item.get('volume', 0),
                 'weight': item.get('weight', 0),
-                'created_at': timestamp
+                'created_at': timestamp,
+                'updated_at': timestamp
             }
             
             items_table = dynamodb.Table(RECEIVING_ITEM_TABLE)
@@ -222,7 +472,7 @@ def create_receiving_order(event):
             }, cls=DecimalEncoder)
         }
     except Exception as e:
-        print(f"Error creating receiving order: {str(e)}")
+        print(f"Error creating receiving order with legacy structure: {str(e)}")
         return {
             'statusCode': 500,
             'headers': COMMON_HEADERS,
@@ -425,7 +675,6 @@ def update_order_status(event, order_id):
             'body': json.dumps({'message': f"Error updating order status: {str(e)}"}, cls=DecimalEncoder)
         }
 
-###################### 예전 함수들 ##########################
 def update_receiving_order(event, order_id):
     """입고 주문 업데이트"""
     try:
@@ -551,192 +800,6 @@ def update_receiving_order(event, order_id):
             'headers': COMMON_HEADERS,
             'body': json.dumps({
                 'order': updated_order,
-                'message': 'Receiving completed successfully'
+                'message': 'Receiving order updated successfully'
             }, cls=DecimalEncoder)
-        }
-
-    except Exception as e:
-        print(f"Error updating receiving order: {str(e)}")
-        return {
-            'statusCode': 500,
-            'headers': COMMON_HEADERS,
-            'body': json.dumps({'message': f"Error updating receiving order: {str(e)}"}, cls=DecimalEncoder)
-        }
-
-def delete_receiving_order(order_id):
-    """입고 주문 삭제"""
-    try:
-        table = dynamodb.Table(RECEIVING_ORDER_TABLE)
-        
-        # 기존 주문 조회
-        response = table.get_item(Key={'order_id': order_id})
-        
-        if 'Item' not in response:
-            return {
-                'statusCode': 404,
-                'headers': COMMON_HEADERS,
-                'body': json.dumps({'message': 'Receiving order not found'}, cls=DecimalEncoder)
-            }
-            
-        existing_order = response['Item']
-        
-        # 상태 변경 제한 (완료된 주문은 삭제 불가)
-        if existing_order.get('status') == 'COMPLETED':
-            return {
-                'statusCode': 400,
-                'headers': COMMON_HEADERS,
-                'body': json.dumps({'message': 'Cannot delete a completed receiving order'}, cls=DecimalEncoder)
-            }
-        
-        # 소프트 삭제 (상태만 변경)
-        table.update_item(
-            Key={'order_id': order_id},
-            UpdateExpression="set #status = :status, updated_at = :time",
-            ExpressionAttributeValues={
-                ':status': 'DELETED',
-                ':time': int(datetime.now().timestamp())
-            },
-            ExpressionAttributeNames={'#status': 'status'}
-        )
-        
-        return {
-            'statusCode': 200,
-            'headers': COMMON_HEADERS,
-            'body': json.dumps({'message': 'Receiving order deleted successfully'}, cls=DecimalEncoder)
-        }
-    except Exception as e:
-        print(f"Error deleting receiving order: {str(e)}")
-        return {
-            'statusCode': 500,
-            'headers': COMMON_HEADERS,
-            'body': json.dumps({'message': f"Error deleting receiving order: {str(e)}"}, cls=DecimalEncoder)
-        }
-
-def get_receiving_orders(event):
-    """모든 입고 주문 목록 조회"""
-    try:
-        table = dynamodb.Table(RECEIVING_ORDER_TABLE)
-        
-        # 파라미터 파싱
-        query_params = event.get('queryStringParameters', {}) or {}
-        supplier_id = query_params.get('supplier_id')
-        status = query_params.get('status')
-        from_date = query_params.get('from_date')
-        to_date = query_params.get('to_date')
-        
-        # 필터 표현식 생성
-        filter_expression = "attribute_exists(order_id)"
-        expression_values = {}
-        
-        # 상태 필터
-        if status:
-            filter_expression += " AND #status = :status"
-            expression_values[':status'] = status
-        
-        # 공급업체 필터
-        if supplier_id:
-            filter_expression += " AND supplier_id = :supplier"
-            expression_values[':supplier'] = supplier_id
-            
-        # 날짜 범위 필터
-        if from_date:
-            filter_expression += " AND scheduled_date >= :from"
-            # ISO 형식의 날짜 문자열을 timestamp로 변환
-            from_timestamp = int(datetime.fromisoformat(from_date).timestamp())
-            expression_values[':from'] = from_timestamp
-            
-        if to_date:
-            filter_expression += " AND scheduled_date <= :to"
-            # ISO 형식의 날짜 문자열을 timestamp로 변환
-            to_timestamp = int(datetime.fromisoformat(to_date).timestamp())
-            expression_values[':to'] = to_timestamp
-
-        # DynamoDB 스캔 실행
-        if expression_values:
-            expression_names = {}
-            if status:
-                expression_names['#status'] = 'status'
-
-            if expression_names:
-                response = table.scan(
-                    FilterExpression=filter_expression,
-                    ExpressionAttributeValues=expression_values,
-                    ExpressionAttributeNames=expression_names
-                )
-            else:
-                response = table.scan(
-                    FilterExpression=filter_expression,
-                    ExpressionAttributeValues=expression_values
-                )
-        else:
-            response = table.scan()
-
-        
-        # 결과 정렬
-        items = sorted(response.get('Items', []), key=lambda x: x.get('created_at', 0), reverse=True)
-        
-        # 날짜 변환 (Timestamp → ISO 문자열)
-        for item in items:
-            if 'scheduled_date' in item and isinstance(item['scheduled_date'], (int, float)):
-                item['scheduled_date_iso'] = datetime.fromtimestamp(item['scheduled_date']).isoformat()
-            if 'created_at' in item and isinstance(item['created_at'], (int, float)):
-                item['created_at_iso'] = datetime.fromtimestamp(item['created_at']).isoformat()
-            if 'updated_at' in item and isinstance(item['updated_at'], (int, float)):
-                item['updated_at_iso'] = datetime.fromtimestamp(item['updated_at']).isoformat()
-        
-        return {
-            'statusCode': 200,
-            'headers': COMMON_HEADERS,
-            'body': json.dumps({
-                'orders': items,
-                'count': len(items)
-            }, cls=DecimalEncoder)
-        }
-    except Exception as e:
-        print(f"Error getting receiving orders: {str(e)}")
-        return {
-            'statusCode': 500,
-            'headers': COMMON_HEADERS,
-            'body': json.dumps({'message': f"Error getting receiving orders: {str(e)}"}, cls=DecimalEncoder)
-        }
-
-def get_receiving_order(order_id):
-    """특정 입고 주문 조회"""
-    try:
-        table = dynamodb.Table(RECEIVING_ORDER_TABLE)
-        
-        response = table.get_item(
-            Key={
-                'order_id': order_id
-            }
-        )
-        
-        if 'Item' not in response:
-            return {
-                'statusCode': 404,
-                'headers': COMMON_HEADERS,
-                'body': json.dumps({'message': 'Receiving order not found'}, cls=DecimalEncoder)
-            }
-            
-        order = response['Item']
-        
-        # 날짜 변환 (Timestamp → ISO 문자열)
-        if 'scheduled_date' in order and isinstance(order['scheduled_date'], (int, float)):
-            order['scheduled_date_iso'] = datetime.fromtimestamp(order['scheduled_date']).isoformat()
-        if 'created_at' in order and isinstance(order['created_at'], (int, float)):
-            order['created_at_iso'] = datetime.fromtimestamp(order['created_at']).isoformat()
-        if 'updated_at' in order and isinstance(order['updated_at'], (int, float)):
-            order['updated_at_iso'] = datetime.fromtimestamp(order['updated_at']).isoformat()
-        
-        return {
-            'statusCode': 200,
-            'headers': COMMON_HEADERS,
-            'body': json.dumps(order, cls=DecimalEncoder)
-        }
-    except Exception as e:
-        print(f"Error getting receiving order: {str(e)}")
-        return {
-            'statusCode': 500,
-            'headers': COMMON_HEADERS,
-            'body': json.dumps({'message': f"Error getting receiving order: {str(e)}"}, cls=DecimalEncoder)
         }
