@@ -34,6 +34,15 @@ class DecimalEncoder(json.JSONEncoder):
             return float(obj)
         return super(DecimalEncoder, self).default(obj)
 
+from decimal import Decimal
+
+def safe_decimal(value, default=0):
+    try:
+        return Decimal(str(value))
+    except:
+        return Decimal(str(default))
+
+
 def lambda_handler(event, context):
     """입고 주문 처리 Lambda 핸들러"""
     try:
@@ -301,12 +310,12 @@ def create_receiving_order_new_structure(body):
             'sku_number': sku_info.get('sku_number', ''),
             'expected_qty': sku_info.get('quantity', 1),  # 수량 기본값 1
             'serial_or_barcode': sku_info.get('serial_or_barcode', ''),
-            'length': sku_info.get('length', 0),
-            'width': sku_info.get('width', 0),
-            'height': sku_info.get('height', 0),
-            'depth': sku_info.get('depth', 0),
-            'volume': sku_info.get('volume', 0),
-            'weight': sku_info.get('weight', 0),
+            'length': safe_decimal(sku_info.get('length', 0)),
+            'width': safe_decimal(sku_info.get('width', 0)),
+            'height': safe_decimal(sku_info.get('height', 0)),
+            'depth': safe_decimal(sku_info.get('depth', 0)),
+            'volume': safe_decimal(sku_info.get('volume', 0)),
+            'weight': safe_decimal(sku_info.get('weight', 0)),
             'notes': sku_info.get('notes', ''),
             'created_at': timestamp,
             'updated_at': timestamp
@@ -430,12 +439,12 @@ def create_receiving_order_legacy(body):
                 'sku_number': item.get('sku_number'),
                 'expected_qty': item.get('expected_qty'),
                 'serial_or_barcode': item.get('serial_or_barcode', ''),
-                'length': item.get('length', 0),
-                'width': item.get('width', 0),
-                'height': item.get('height', 0),
-                'depth': item.get('depth', 0),
-                'volume': item.get('volume', 0),
-                'weight': item.get('weight', 0),
+                'length': safe_decimal(item.get('length', 0)),
+                'width': safe_decimal(item.get('width', 0)),
+                'height': safe_decimal(item.get('height', 0)),
+                'depth': safe_decimal(item.get('depth', 0)),
+                'volume': safe_decimal(item.get('volume', 0)),
+                'weight': safe_decimal(item.get('weight', 0)),
                 'created_at': timestamp,
                 'updated_at': timestamp
             }
