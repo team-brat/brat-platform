@@ -801,4 +801,5 @@ def update_receiving_order(event, order_id):
             'body': json.dumps({
                 'order': updated_order,
                 'message': 'Receiving order updated successfully'
-            }, cls=DecimalEncoder)}
+            }, cls=DecimalEncoder)
+        }
