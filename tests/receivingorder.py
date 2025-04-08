@@ -1,14 +1,16 @@
 import requests
 import uuid
 import json
+import base64
 from datetime import datetime
-
+from decimal import Decimal
 API_BASE_URL = "https://zf42ytba0m.execute-api.us-east-2.amazonaws.com/dev"
 RECEIVING_ORDERS_ENDPOINT = f"{API_BASE_URL}/receiving-orders"
 
 TEST_ORDER_ID = None
 
 def generate_test_order():
+    """Generate test data using the legacy format (which we know works)"""
     return {
         "supplier_id": "SUPP-123",
         "supplier_name": "Sample Supplier",
@@ -30,6 +32,60 @@ def generate_test_order():
         "user_id": "api_test_user"
     }
 
+def generate_new_structure_test_data():
+    """Generate test data in the new structure format"""
+    # For testing with small files, use actual simple base64
+    sample_base64 = base64.b64encode(b"Test document content").decode('utf-8')
+    
+    return {
+        "request_details": {
+            "scheduled_date": datetime.now().strftime("%Y-%m-%d"),
+            "supplier_name": "Acme Corp",
+            "supplier_number": "SUP-001",
+            "po_number": f"PO-{uuid.uuid4().hex[:8]}",
+            "contact_name": "John Doe",
+            "contact_phone": "010-9876-5432",
+            "responsible_person": "Jane Smith",
+            "notes": "Created with new structure"
+        },
+        "sku_information": {
+            "sku_name": "Widget A",
+            "sku_number": "SKU-12345",
+            "quantity": 15,
+            "serial_or_barcode": "ABC123456789",
+            "length": "20.5",
+            "width": "15.0",
+            "height": "10.0",
+            "depth": "5.0",
+            "volume": "3000",
+            "weight": "2.5",
+            "notes": "Handle with care"
+        },
+        "shipment_information": {
+            "shipment_number": "SHIP-9988",
+            "truck_number": "TRUCK-11",
+            "driver_contact_info": "+82-10-1234-5678"
+        },
+        "documents": {
+            "invoice": {
+                "file_name": "invoice.pdf",
+                "content_type": "application/pdf",
+                "file_content": sample_base64
+            },
+            "bill_of_entry": {
+                "file_name": "bill.pdf",
+                "content_type": "application/pdf",
+                "file_content": sample_base64
+            },
+            "airway_bill": {
+                "file_name": "airwaybill.pdf",
+                "content_type": "application/pdf",
+                "file_content": sample_base64
+            }
+        },
+        "user_id": "api_test_user"
+    }
+
 def print_result(name, response):
     print(f"\n--- {name} ---")
     print(f"Status: {response.status_code}")
@@ -38,17 +94,40 @@ def print_result(name, response):
     except:
         print(response.text)
 
-def test_create_order():
+def test_create_order_legacy():
+    """Test creating an order with the legacy format"""
     global TEST_ORDER_ID
-    print("\n[1] Create Receiving Order")
+    print("\n[1] Create Receiving Order (Legacy Format)")
+    
     payload = generate_test_order()
     response = requests.post(RECEIVING_ORDERS_ENDPOINT, json=payload)
-    print_result("Create Receiving Order", response)
+    print_result("Create Receiving Order (Legacy)", response)
+    
     if response.status_code == 201:
         TEST_ORDER_ID = response.json()["order"]["order_id"]
+        return True
+    return False
+
+def test_create_order_new_structure():
+    """Test creating an order with the new structure format"""
+    global TEST_ORDER_ID
+    print("\n[1] Create Receiving Order (New Structure)")
+    
+    payload = generate_new_structure_test_data()
+    response = requests.post(RECEIVING_ORDERS_ENDPOINT, json=payload)
+    print_result("Create Receiving Order (New Structure)", response)
+    
+    if response.status_code == 201:
+        response_data = response.json()
+        if "order" in response_data:
+            TEST_ORDER_ID = response_data["order"]["order_id"]
+        elif "order_id" in response_data:
+            TEST_ORDER_ID = response_data["order_id"]
+        return True
+    return False
 
 def test_get_order():
-    print("\n[2] Get Receiving Order")
+    print(f"\n[2] Get Receiving Order: {TEST_ORDER_ID}")
     response = requests.get(f"{RECEIVING_ORDERS_ENDPOINT}/{TEST_ORDER_ID}")
     print_result("Get Receiving Order", response)
 
@@ -67,11 +146,11 @@ def test_list_orders():
     print_result("List All Orders", response)
 
 def test_status_update():
-    print("\n[5] Update Order Status to COMPLETED")
+    print("\n[5] Update Order Status to IN_PROGRESS")
     response = requests.put(f"{RECEIVING_ORDERS_ENDPOINT}/{TEST_ORDER_ID}/status", json={
         "status": "IN_PROGRESS",
         "user_id": "api_test_user",
-        "notes": "Completing order for test"
+        "notes": "Changing status for test"
     })
     print_result("Update Order Status", response)
 
@@ -87,10 +166,12 @@ def test_delete_order():
     print("\n[7] Attempt to Delete Completed Order")
     response = requests.delete(f"{RECEIVING_ORDERS_ENDPOINT}/{TEST_ORDER_ID}")
     print_result("Delete Order", response)
+
 def test_filtering_by_supplier():
     print("\n[8] Filtering Orders by supplier_id")
-    response = requests.get(f"{RECEIVING_ORDERS_ENDPOINT}?supplier_id=SUPP-123")
-    print_result("Filter by supplier_id", response)
+    supplier_id = "SUPP-123"  # Use the supplier ID from our legacy structure
+    response = requests.get(f"{RECEIVING_ORDERS_ENDPOINT}?supplier_id={supplier_id}")
+    print_result(f"Filter by supplier_id ({supplier_id})", response)
 
 def test_invalid_status_update():
     print("\n[9] Invalid Status Update (bad value)")
@@ -135,16 +216,26 @@ def test_document_verification():
     response = requests.post(endpoint, json=payload)
     print_result("Document Verification", response)
 
-
 def run_all_tests():
-    test_create_order()
+    # First try the new structure format
+    created_with_new = test_create_order_new_structure()
+    
+    # If the new structure fails, fall back to legacy format
+    if not created_with_new:
+        print("\n⚠️ New structure format failed, falling back to legacy format")
+        created_with_legacy = test_create_order_legacy()
+        if not created_with_legacy:
+            print("❌ Both new structure and legacy formats failed to create an order.")
+            return
+    
     if TEST_ORDER_ID:
+        print(f"\n✅ Successfully created order with ID: {TEST_ORDER_ID}")
         test_get_order()
         test_update_order_info()
         test_list_orders()
         test_filtering_by_supplier()
         test_status_update()
-        test_document_verification()  # ⬅️ 여기로 이동
+        test_document_verification()
         test_invalid_status_update()
         test_receive_order()
         test_delete_order()
