@@ -803,3 +803,10 @@ def update_receiving_order(event, order_id):
                 'message': 'Receiving order updated successfully'
             }, cls=DecimalEncoder)
         }
+    except Exception as e:
+        print(f"Error updating receiving order: {str(e)}")
+        return {
+            'statusCode': 500,
+            'headers': COMMON_HEADERS,
+            'body': json.dumps({'message': f"Error updating receiving order: {str(e)}"}, cls=DecimalEncoder)
+        }
