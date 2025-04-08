@@ -12,6 +12,15 @@ dynamodb = boto3.resource('dynamodb')
 SUPPLIER_TABLE = os.environ.get('SUPPLIER_TABLE')
 RECEIVING_HISTORY_TABLE = os.environ.get('RECEIVING_HISTORY_TABLE')
 
+# 표준 응답 헤더
+COMMON_HEADERS = {
+    'Content-Type': 'application/json',
+    'Access-Control-Allow-Origin': 'http://localhost:3000',
+    'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
+    'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+    'Access-Control-Allow-Credentials': 'true'
+}
+
 # JSON 인코더 클래스 정의
 class DecimalEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -61,12 +70,7 @@ def lambda_handler(event, context):
             # 기본 응답
             return {
                 'statusCode': 404,
-                'headers': {
-                    'Content-Type': 'application/json',
-                    'Access-Control-Allow-Origin': '*',
-                    'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
-                    'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'
-                },
+                'headers': COMMON_HEADERS,
                 'body': json.dumps({
                     'message': 'Endpoint not found',
                     'path': path,
@@ -77,12 +81,7 @@ def lambda_handler(event, context):
         # 직접 호출
         return {
             'statusCode': 200,
-            'headers': {
-                    'Content-Type': 'application/json',
-                    'Access-Control-Allow-Origin': '*',
-                    'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
-                    'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'
-                },
+            'headers': COMMON_HEADERS,
             'body': json.dumps({
                 'message': 'Supplier service executed directly',
                 'event': event
@@ -93,12 +92,7 @@ def lambda_handler(event, context):
         print(f"Error: {str(e)}")
         return {
             'statusCode': 500,
-            'headers': {
-                    'Content-Type': 'application/json',
-                    'Access-Control-Allow-Origin': '*',
-                    'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
-                    'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'
-                },
+            'headers': COMMON_HEADERS,
             'body': json.dumps({'message': f"Error: {str(e)}"}, cls=DecimalEncoder)
         }
 
@@ -126,10 +120,7 @@ def get_suppliers(event):
         
         return {
             'statusCode': 200,
-            'headers': {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
-            },
+            'headers': COMMON_HEADERS,
             'body': json.dumps({
                 'suppliers': suppliers,
                 'count': len(suppliers)
@@ -139,7 +130,7 @@ def get_suppliers(event):
         print(f"Error getting suppliers: {str(e)}")
         return {
             'statusCode': 500,
-            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'headers': COMMON_HEADERS,
             'body': json.dumps({'message': f"Error getting suppliers: {str(e)}"}, cls=DecimalEncoder)
         }
 
@@ -157,25 +148,38 @@ def get_supplier(supplier_id):
         if 'Item' not in response:
             return {
                 'statusCode': 404,
-                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'headers': COMMON_HEADERS,
                 'body': json.dumps({'message': 'Supplier not found'}, cls=DecimalEncoder)
             }
             
         supplier = response['Item']
         
+        # 새로운 응답 형식으로 변환
+        formatted_supplier = {
+            'supplier_id': supplier.get('supplier_id'),
+            'supplier_name': supplier.get('supplier_name'),
+            'contact_info': {
+                'name': supplier.get('contact_name', ''),
+                'email': supplier.get('contact_email', ''),
+                'phone': supplier.get('contact_phone', ''),
+                'responsible_person': supplier.get('responsible_person', '')
+            },
+            'address': supplier.get('address', ''),
+            'status': supplier.get('status', 'ACTIVE'),
+            'created_at': supplier.get('created_at'),
+            'updated_at': supplier.get('updated_at')
+        }
+        
         return {
             'statusCode': 200,
-            'headers': {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
-            },
-            'body': json.dumps(supplier, cls=DecimalEncoder)
+            'headers': COMMON_HEADERS,
+            'body': json.dumps(formatted_supplier, cls=DecimalEncoder)
         }
     except Exception as e:
         print(f"Error getting supplier: {str(e)}")
         return {
             'statusCode': 500,
-            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'headers': COMMON_HEADERS,
             'body': json.dumps({'message': f"Error getting supplier: {str(e)}"}, cls=DecimalEncoder)
         }
 
@@ -191,7 +195,7 @@ def create_supplier(event):
         if missing_fields:
             return {
                 'statusCode': 400,
-                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'headers': COMMON_HEADERS,
                 'body': json.dumps({'message': f'Missing required fields: {", ".join(missing_fields)}'}, cls=DecimalEncoder)
             }
             
@@ -217,14 +221,27 @@ def create_supplier(event):
         table = dynamodb.Table(SUPPLIER_TABLE)
         table.put_item(Item=supplier_data)
         
+        # 응답 형식으로 변환
+        formatted_supplier = {
+            'supplier_id': supplier_data.get('supplier_id'),
+            'supplier_name': supplier_data.get('supplier_name'),
+            'contact_info': {
+                'name': supplier_data.get('contact_name', ''),
+                'email': supplier_data.get('contact_email', ''),
+                'phone': supplier_data.get('contact_phone', ''),
+                'responsible_person': supplier_data.get('responsible_person', '')
+            },
+            'address': supplier_data.get('address', ''),
+            'status': supplier_data.get('status', 'ACTIVE'),
+            'created_at': supplier_data.get('created_at'),
+            'updated_at': supplier_data.get('updated_at')
+        }
+        
         return {
             'statusCode': 201,
-            'headers': {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
-            },
+            'headers': COMMON_HEADERS,
             'body': json.dumps({
-                'supplier': supplier_data,
+                'supplier': formatted_supplier,
                 'message': 'Supplier created successfully'
             }, cls=DecimalEncoder)
         }
@@ -232,7 +249,7 @@ def create_supplier(event):
         print(f"Error creating supplier: {str(e)}")
         return {
             'statusCode': 500,
-            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'headers': COMMON_HEADERS,
             'body': json.dumps({'message': f"Error creating supplier: {str(e)}"}, cls=DecimalEncoder)
         }
 
@@ -247,7 +264,7 @@ def update_supplier(event, supplier_id):
         if 'Item' not in response:
             return {
                 'statusCode': 404,
-                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'headers': COMMON_HEADERS,
                 'body': json.dumps({'message': 'Supplier not found'}, cls=DecimalEncoder)
             }
 
@@ -269,7 +286,7 @@ def update_supplier(event, supplier_id):
 
         for field, short in update_fields.items():
             if field in body:
-                # ✅ 예약어 처리
+                # 예약어 처리
                 if field == 'status':
                     update_expression += f", #status = :{short}"
                     expression_names['#status'] = 'status'
@@ -292,11 +309,27 @@ def update_supplier(event, supplier_id):
         response = table.get_item(Key={'supplier_id': supplier_id})
         updated_supplier = response['Item']
 
+        # 새로운 응답 형식으로 변환
+        formatted_supplier = {
+            'supplier_id': updated_supplier.get('supplier_id'),
+            'supplier_name': updated_supplier.get('supplier_name'),
+            'contact_info': {
+                'name': updated_supplier.get('contact_name', ''),
+                'email': updated_supplier.get('contact_email', ''),
+                'phone': updated_supplier.get('contact_phone', ''),
+                'responsible_person': updated_supplier.get('responsible_person', '')
+            },
+            'address': updated_supplier.get('address', ''),
+            'status': updated_supplier.get('status', 'ACTIVE'),
+            'created_at': updated_supplier.get('created_at'),
+            'updated_at': updated_supplier.get('updated_at')
+        }
+
         return {
             'statusCode': 200,
-            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'headers': COMMON_HEADERS,
             'body': json.dumps({
-                'supplier': updated_supplier,
+                'supplier': formatted_supplier,
                 'message': 'Supplier updated successfully'
             }, cls=DecimalEncoder)
         }
@@ -305,7 +338,7 @@ def update_supplier(event, supplier_id):
         print(f"Error updating supplier: {str(e)}")
         return {
             'statusCode': 500,
-            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'headers': COMMON_HEADERS,
             'body': json.dumps({'message': f"Error updating supplier: {str(e)}"}, cls=DecimalEncoder)
         }
 
@@ -320,7 +353,7 @@ def delete_supplier(supplier_id):
         if 'Item' not in response:
             return {
                 'statusCode': 404,
-                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'headers': COMMON_HEADERS,
                 'body': json.dumps({'message': 'Supplier not found'}, cls=DecimalEncoder)
             }
             
@@ -337,14 +370,14 @@ def delete_supplier(supplier_id):
         
         return {
             'statusCode': 200,
-            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'headers': COMMON_HEADERS,
             'body': json.dumps({'message': 'Supplier deleted successfully'}, cls=DecimalEncoder)
         }
     except Exception as e:
         print(f"Error deleting supplier: {str(e)}")
         return {
             'statusCode': 500,
-            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'headers': COMMON_HEADERS,
             'body': json.dumps({'message': f"Error deleting supplier: {str(e)}"}, cls=DecimalEncoder)
         }
 
@@ -358,7 +391,7 @@ def get_supplier_inbound_history(supplier_id):
         if 'Item' not in supplier_response:
             return {
                 'statusCode': 404,
-                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'headers': COMMON_HEADERS,
                 'body': json.dumps({'message': 'Supplier not found'}, cls=DecimalEncoder)
             }
             
@@ -389,10 +422,7 @@ def get_supplier_inbound_history(supplier_id):
         
         return {
             'statusCode': 200,
-            'headers': {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
-            },
+            'headers': COMMON_HEADERS,
             'body': json.dumps({
                 'history': history_items,
                 'count': len(history_items)
@@ -402,7 +432,7 @@ def get_supplier_inbound_history(supplier_id):
         print(f"Error getting supplier inbound history: {str(e)}")
         return {
             'statusCode': 500,
-            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'headers': COMMON_HEADERS,
             'body': json.dumps({'message': f"Error getting supplier inbound history: {str(e)}"}, cls=DecimalEncoder)
         }
 
@@ -416,7 +446,7 @@ def get_supplier_outbound_history(supplier_id):
         if 'Item' not in supplier_response:
             return {
                 'statusCode': 404,
-                'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+                'headers': COMMON_HEADERS,
                 'body': json.dumps({'message': 'Supplier not found'}, cls=DecimalEncoder)
             }
             
@@ -446,10 +476,7 @@ def get_supplier_outbound_history(supplier_id):
         
         return {
             'statusCode': 200,
-            'headers': {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
-            },
+            'headers': COMMON_HEADERS,
             'body': json.dumps({
                 'history': history_items,
                 'count': len(history_items)
@@ -459,6 +486,6 @@ def get_supplier_outbound_history(supplier_id):
         print(f"Error getting supplier outbound history: {str(e)}")
         return {
             'statusCode': 500,
-            'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
+            'headers': COMMON_HEADERS,
             'body': json.dumps({'message': f"Error getting supplier outbound history: {str(e)}"}, cls=DecimalEncoder)
         }
