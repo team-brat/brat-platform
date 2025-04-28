@@ -17,58 +17,11 @@ phases:
   
   build:
     commands:
-      - echo Packaging Lambda functions...
-      - mkdir -p deployment
-      
-      # 디버깅용 디렉토리 구조 확인
-      - echo "프로젝트 디렉토리 구조:"
-      - ls -la
-      - echo "src 디렉토리 구조:"
-      - ls -la src || echo "src 디렉토리 없음"
-      - echo "src/functions 디렉토리 구조:"
-      - ls -la src/functions || echo "src/functions 디렉토리 없음"
-      - echo "receiving-order-service 디렉토리 구조:"
-      - ls -la src/functions/receiving-order-service || echo "receiving-order-service 디렉토리 없음"
-      
-      # Lambda 함수 코드 파일 생성 (문제 해결을 위해)
-      - echo "Lambda 함수 코드가 없는 경우 임시 파일 생성"
-      - mkdir -p src/functions/receiving-order-service || echo "디렉토리 생성 실패"
-      - |
-        if [ ! -f src/functions/receiving-order-service/ReceivingOrderService.py ]; then
-          echo "ReceivingOrderService.py 파일이 없어 임시 파일 생성"
-          cat > src/functions/receiving-order-service/ReceivingOrderService.py << 'EOF'
-        import json
-        
-        def lambda_handler(event, context):
-            return {
-                'statusCode': 200,
-                'headers': {
-                    'Content-Type': 'application/json',
-                    'Access-Control-Allow-Origin': '*'
-                },
-                'body': json.dumps({
-                    'message': 'WMS Receiving Order Service is running!',
-                    'event': event
-                })
-            }
-        EOF
-        fi
-      
-      # requirements.txt 파일 생성 (없는 경우)
-      - |
-        if [ ! -f src/functions/receiving-order-service/requirements.txt ]; then
-          echo "requirements.txt 파일이 없어 임시 파일 생성"
-          touch src/functions/receiving-order-service/requirements.txt
-        fi
-      
-      # Lambda 패키지 생성
-      - cp src/functions/receiving-order-service/ReceivingOrderService.py ./receiving-order-package/
-      - cd receiving-order-package
-      - ls -la  # 확인용
-      - zip -r ../deployment/receiving-order-service-deployment-package.zip .
-      - cd ..
-      - echo "배포 패키지 확인:"
-      - ls -la deployment/
+        - echo "Packaging Lambda function..."
+        - cp src/functions/receiving-order-service/ReceivingOrderService.py lambda-package/
+        - cd lambda-package
+        - zip -r ../lambda-package.zip .
+        - cd ..
   
   post_build:
     commands:
