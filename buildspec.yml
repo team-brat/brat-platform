@@ -13,7 +13,6 @@ phases:
       - echo Installing dependencies...
       - mkdir -p receiving-order-package
       - pip install -r src/functions/receiving-order-service/requirements.txt -t ./receiving-order-package || echo "No requirements.txt found"
-  
   build:
     commands:
       - echo "Packaging Lambda function..."
@@ -23,7 +22,6 @@ phases:
       - cd ..
       - mkdir -p deployment
       - mv receiving-order-service-deployment-package.zip deployment/
-  
   post_build:
     commands:
       - echo "배포 버킷: ${DEPLOYMENT_BUCKET}"
