@@ -17,11 +17,11 @@ phases:
   
   build:
     commands:
-        - echo "Packaging Lambda function..."
-        - cp src/functions/receiving-order-service/ReceivingOrderService.py lambda-package/
-        - cd lambda-package
-        - zip -r ../lambda-package.zip .
-        - cd ..
+      - echo "Packaging Lambda function..."
+      - cp src/functions/receiving-order-service/ReceivingOrderService.py lambda-package/
+      - cd lambda-package
+      - zip -r ../lambda-package.zip .
+      - cd ..
   
   post_build:
     commands:
