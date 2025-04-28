@@ -1,15 +1,60 @@
 version: 0.2
+
 phases:
   install:
+    runtime-versions:
+      python: 3.9
     commands:
-      - echo "Install phase"
+      - echo Installing dependencies...
+      - mkdir -p receiving-order-package
+      - pip install -r src/functions/receiving-order-service/requirements.txt -t ./receiving-order-package || echo "No requirements.txt found"
+  
   build:
     commands:
-      - echo "Build phase"
+      - echo Packaging Lambda functions...
+      - mkdir -p deployment
+      
+      # Receiving Order Service
+      - echo "현재 디렉토리 구조 확인:"
+      - ls -la
+      - echo "src/functions 디렉토리 확인:"
+      - ls -la src/functions || echo "src/functions 디렉토리 없음"
+      - echo "receiving-order-service 디렉토리 확인:"
+      - ls -la src/functions/receiving-order-service || echo "receiving-order-service 디렉토리 없음"
+      
+      # ReceivingOrderService.py 파일 복사
+      - cp src/functions/receiving-order-service/ReceivingOrderService.py ./receiving-order-package/ || echo "ReceivingOrderService.py 파일 복사 실패"
+      
+      # 배포 패키지 생성
+      - cd receiving-order-package
+      - ls -la  # 디렉토리 내용 확인
+      - zip -r ../deployment/receiving-order-service-deployment-package.zip . || echo "Zip 파일 생성 실패"
+      - cd ..
+      
+      # 배포 패키지 확인
+      - ls -la deployment/
+  
   post_build:
     commands:
-      - echo "Post build phase"
-# artifacts: 섹션도 잠시 제거하거나 최소화
+      # 배포 버킷 이름 출력
+      - echo "Deployment bucket: ${DEPLOYMENT_BUCKET}"
+      - echo "Environment type: ${ENVIRONMENT_TYPE}"
+      
+      # S3에 배포 패키지 업로드
+      - aws s3 cp deployment/receiving-order-service-deployment-package.zip s3://${DEPLOYMENT_BUCKET}/${ENVIRONMENT_TYPE}/receiving-order-service/deployment-package.zip --acl private || echo "S3 업로드 실패"
+      
+      # 업로드 확인
+      - aws s3 ls s3://${DEPLOYMENT_BUCKET}/${ENVIRONMENT_TYPE}/receiving-order-service/ || echo "S3 목록 조회 실패"
+      
+      # CloudFormation 템플릿 업로드
+      - aws s3 cp infrastructure/ s3://${DEPLOYMENT_BUCKET}/${ENVIRONMENT_TYPE}/infrastructure/ --recursive || echo "인프라 템플릿 업로드 실패"
+      
+      # Lambda 함수 업데이트 (이미 배포된 경우)
+      - aws lambda update-function-code --function-name wms-receiving-order-service-${ENVIRONMENT_TYPE} --s3-bucket ${DEPLOYMENT_BUCKET} --s3-key ${ENVIRONMENT_TYPE}/receiving-order-service/deployment-package.zip || echo "Lambda 함수 업데이트 실패"
+
 artifacts:
   files:
-    - README.md # 임시로 최소한의 파일 지정
+    - deployment/**/*
+    - infrastructure/**/*
+    - buildspec.yml
+    - README.md
