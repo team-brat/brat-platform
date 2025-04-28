@@ -24,15 +24,15 @@ phases:
       - mv receiving-order-service-deployment-package.zip deployment/
   post_build:
     commands:
-      - echo "배포 버킷: ${DEPLOYMENT_BUCKET}"
-      - echo "환경 타입: ${ENVIRONMENT_TYPE}"
-      - aws s3 ls s3://${DEPLOYMENT_BUCKET} || echo "버킷이 존재하지 않습니다"
-      - echo "배포 패키지 S3 업로드 중..."
+      - echo "Deployment bucket: ${DEPLOYMENT_BUCKET}"
+      - echo "Environment type: ${ENVIRONMENT_TYPE}"
+      - aws s3 ls s3://${DEPLOYMENT_BUCKET} || echo "Bucket does not exist"
+      - echo "Uploading deployment package to S3..."
       - aws s3 cp deployment/receiving-order-service-deployment-package.zip s3://${DEPLOYMENT_BUCKET}/${ENVIRONMENT_TYPE}/receiving-order-service/deployment-package.zip --acl private
-      - echo "S3 업로드 확인:"
+      - echo "Confirming S3 upload:"
       - aws s3 ls s3://${DEPLOYMENT_BUCKET}/${ENVIRONMENT_TYPE}/receiving-order-service/
-      - echo "Lambda 함수 코드 업데이트 중..."
-      - aws lambda update-function-code --function-name wms-receiving-order-service-${ENVIRONMENT_TYPE} --s3-bucket ${DEPLOYMENT_BUCKET} --s3-key ${ENVIRONMENT_TYPE}/receiving-order-service/deployment-package.zip || echo "Lambda 함수 업데이트 실패"
+      - echo "Updating Lambda function code..."
+      - aws lambda update-function-code --function-name wms-receiving-order-service-${ENVIRONMENT_TYPE} --s3-bucket ${DEPLOYMENT_BUCKET} --s3-key ${ENVIRONMENT_TYPE}/receiving-order-service/deployment-package.zip || echo "Lambda function update failed"
 
 artifacts:
   files:
