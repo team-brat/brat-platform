@@ -33,24 +33,28 @@ Resources:
   # ------ Lambda 함수 정의 ------
   # 입고 주문 Lambda 함수 (주요 기능)
   ReceivingOrderFunction:
-    Type: AWS::Lambda::Function
-    Properties:
-      FunctionName: !Sub "wms-receiving-order-service-${EnvironmentType}"
-      Runtime: python3.9
-      Handler: ReceivingOrderService.lambda_handler
-      Role: !GetAtt LambdaExecutionRole.Arn
-      Timeout: 30
-      MemorySize: 256
-      Code:
-        S3Bucket: !ImportValue 'wms-storage-stack-DeploymentBucketName'
-        S3Key: !Sub "${EnvironmentType}/receiving-order-service/deployment-package.zip"
-      Environment:
-        Variables:
-          RECEIVING_ORDER_TABLE: !ImportValue 'wms-storage-stack-ReceivingOrderTableName'
-          RECEIVING_HISTORY_TABLE: !ImportValue 'wms-storage-stack-ReceivingHistoryTableName'
-          RECEIVING_ITEM_TABLE: !ImportValue 'wms-storage-stack-ReceivingItemTableName'
-          DOCUMENT_METADATA_TABLE: !ImportValue 'wms-storage-stack-DocumentMetadataTableName'
-          DOCUMENT_BUCKET: !ImportValue 'wms-storage-stack-DocumentBucketName'
+  Type: AWS::Lambda::Function
+  Properties:
+    FunctionName: !Sub "wms-receiving-order-service-${EnvironmentType}"
+    Runtime: python3.9
+    Handler: index.handler
+    Role: !GetAtt LambdaExecutionRole.Arn
+    Timeout: 30
+    MemorySize: 256
+    Code:
+      ZipFile: |
+        def lambda_handler(event, context):
+            return {
+                'statusCode': 200,
+                'body': 'Temporary function - will be updated with actual code via CI/CD pipeline.'
+            }
+    Environment:
+      Variables:
+        RECEIVING_ORDER_TABLE: !ImportValue 'wms-storage-stack-ReceivingOrderTableName'
+        RECEIVING_HISTORY_TABLE: !ImportValue 'wms-storage-stack-ReceivingHistoryTableName'
+        RECEIVING_ITEM_TABLE: !ImportValue 'wms-storage-stack-ReceivingItemTableName'
+        DOCUMENT_METADATA_TABLE: !ImportValue 'wms-storage-stack-DocumentMetadataTableName'
+        DOCUMENT_BUCKET: !ImportValue 'wms-storage-stack-DocumentBucketName'
 
   # ------ EventBridge 규칙 정의 ------
   # 주문 생성 이벤트 규칙
