@@ -36,3 +36,4 @@ artifacts:
     - infrastructure/wms-storage-stack.yaml
     - infrastructure/wms-service-stack.yaml
     - appspec.yml
+    - deployment/**/*
