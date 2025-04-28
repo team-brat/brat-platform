@@ -8,7 +8,7 @@ phases:
       - echo Installing dependencies...
       - mkdir -p receiving-order-package
       - pip install -r src/functions/receiving-order-service/requirements.txt -t ./receiving-order-package || echo "No requirements.txt found"
-
+  
   build:
     commands:
       - echo Packaging Lambda functions...
@@ -19,20 +19,17 @@ phases:
       - cd receiving-order-package
       - zip -r ../deployment/receiving-order-service-deployment-package.zip .
       - cd ..
-
+  
   post_build:
     commands:
       - ls -la deployment/
       - aws s3 cp deployment/receiving-order-service-deployment-package.zip s3://${DEPLOYMENT_BUCKET}/${ENVIRONMENT_TYPE}/receiving-order-service/deployment-package.zip --acl private || echo "Receiving order service upload failed"
       - echo "Files uploaded to S3"
       
-      # Lambda 함수 업데이트
+      # Lambda function update
       - aws lambda update-function-code --function-name wms-receiving-order-service-${ENVIRONMENT_TYPE} --s3-bucket ${DEPLOYMENT_BUCKET} --s3-key ${ENVIRONMENT_TYPE}/receiving-order-service/deployment-package.zip || echo "Receiving order service update failed - function may not exist yet"
       - echo "Lambda functions updated if they exist"
 
 artifacts:
   files:
-    - infrastructure/wms-base-infrastructure.yaml
-    - infrastructure/wms-storage-stack.yaml
-    - infrastructure/wms-service-stack.yaml
-    - appspec.yml
+    - deployment/receiving-order-service-deployment-package.zip
