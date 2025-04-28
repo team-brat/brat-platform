@@ -10,31 +10,36 @@ phases:
     runtime-versions:
       python: 3.9
     commands:
-      - echo Installing dependencies...
+      - echo "Installing dependencies..."
       - mkdir -p receiving-order-package
-      - pip install -r src/functions/receiving-order-service/requirements.txt -t ./receiving-order-package || echo "No requirements.txt found"
-  
+      # requirements.txt가 없거나 설치 실패 시 메시지 출력
+      - pip install -r src/functions/receiving-order-service/requirements.txt -t ./receiving-order-package || echo "Pip install failed or no requirements.txt found."
+
   build:
     commands:
-      - echo Packaging Lambda function...
+      - echo "Packaging Lambda function..."
       - cp src/functions/receiving-order-service/ReceivingOrderService.py receiving-order-package/
       - cd receiving-order-package
       - zip -r ../receiving-order-service-deployment-package.zip .
       - cd ..
       - mkdir -p deployment
       - mv receiving-order-service-deployment-package.zip deployment/
-  
+
   post_build:
     commands:
-      - echo Deployment bucket: ${DEPLOYMENT_BUCKET}
-      - echo Environment type: ${ENVIRONMENT_TYPE}
-      - aws s3 ls s3://${DEPLOYMENT_BUCKET} || echo Bucket does not exist
-      - echo Uploading deployment package to S3...
+      - echo "Deployment bucket: ${DEPLOYMENT_BUCKET}"
+      - echo "Environment type: ${ENVIRONMENT_TYPE}"
+      # S3 버킷 존재 확인 (존재하지 않으면 ls 명령 실패)
+      - aws s3 ls s3://${DEPLOYMENT_BUCKET} || echo "Bucket ${DEPLOYMENT_BUCKET} does not seem to exist or access denied."
+      - echo "Uploading deployment package to S3..."
+      # 배포 패키지 업로드
       - aws s3 cp deployment/receiving-order-service-deployment-package.zip s3://${DEPLOYMENT_BUCKET}/${ENVIRONMENT_TYPE}/receiving-order-service/deployment-package.zip --acl private
-      - echo Confirming S3 upload:
+      - echo "Confirming S3 upload:"
+      # 업로드된 파일 확인
       - aws s3 ls s3://${DEPLOYMENT_BUCKET}/${ENVIRONMENT_TYPE}/receiving-order-service/
-      - echo Updating Lambda function code...
-      - aws lambda update-function-code --function-name wms-receiving-order-service-${ENVIRONMENT_TYPE} --s3-bucket ${DEPLOYMENT_BUCKET} --s3-key ${ENVIRONMENT_TYPE}/receiving-order-service/deployment-package.zip || echo Lambda function update failed
+      - echo "Updating Lambda function code..."
+      # Lambda 함수 코드 업데이트 시도
+      - aws lambda update-function-code --function-name wms-receiving-order-service-${ENVIRONMENT_TYPE} --s3-bucket ${DEPLOYMENT_BUCKET} --s3-key ${ENVIRONMENT_TYPE}/receiving-order-service/deployment-package.zip || echo "Lambda function update failed for wms-receiving-order-service-${ENVIRONMENT_TYPE}"
 
 artifacts:
   files:
