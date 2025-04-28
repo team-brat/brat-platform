@@ -16,7 +16,8 @@ Resources:
   DocumentBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub "wms-documents-${EnvironmentType}-${AWS::AccountId}-${AWS::StackName}"
+      BucketName: !Sub "wms-documents-${EnvironmentType}-${AWS::AccountId}-${AWS::Region}-${AWS::StackName}-v1"
+      DeletionPolicy: Retain
       VersioningConfiguration:
         Status: Enabled
       PublicAccessBlockConfiguration:
@@ -36,7 +37,7 @@ Resources:
   DocumentMetadataTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub "wms-document-metadata-${EnvironmentType}"
+      TableName: !Sub "wms-document-metadata-${EnvironmentType}-${AWS::StackName}"
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: document_id
@@ -72,7 +73,7 @@ Resources:
   ReceivingOrderTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub "wms-receiving-orders-${EnvironmentType}"
+      TableName: !Sub "wms-receiving-orders-${EnvironmentType}-${AWS::StackName}"
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: order_id
@@ -118,7 +119,7 @@ Resources:
   ReceivingItemTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub "wms-receiving-items-${EnvironmentType}"
+      TableName: !Sub "wms-receiving-items-${EnvironmentType}-${AWS::StackName}"
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: item_id
@@ -144,7 +145,7 @@ Resources:
   ReceivingHistoryTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub "wms-receiving-history-${EnvironmentType}"
+      TableName: !Sub "wms-receiving-history-${EnvironmentType}-${AWS::StackName}"
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: history_id
@@ -170,7 +171,7 @@ Resources:
   DeploymentBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub "wms-deployment-${EnvironmentType}-${AWS::AccountId}-${AWS::StackName}"
+      BucketName: !Sub "wms-deployment-${EnvironmentType}-${AWS::AccountId}-${AWS::Region}-${AWS::StackName}-v1"
       VersioningConfiguration:
         Status: Enabled
       PublicAccessBlockConfiguration:
@@ -178,12 +179,13 @@ Resources:
         BlockPublicPolicy: true
         IgnorePublicAcls: true
         RestrictPublicBuckets: true
+      DeletionPolicy: Retain
 
   # 웹 프론트엔드 호스팅을 위한 S3 버킷
   WebsiteBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub "wms-website-${EnvironmentType}-${AWS::AccountId}"
+      BucketName: !Sub "wms-website-${EnvironmentType}-${AWS::AccountId}-${AWS::Region}-v1"
       WebsiteConfiguration:
         IndexDocument: index.html
         ErrorDocument: error.html
