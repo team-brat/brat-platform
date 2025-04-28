@@ -13,26 +13,28 @@ phases:
       - echo Installing dependencies...
       - mkdir -p receiving-order-package
       - pip install -r src/functions/receiving-order-service/requirements.txt -t ./receiving-order-package || echo "No requirements.txt found"
+  
   build:
     commands:
-      - echo "Packaging Lambda function..."
+      - echo Packaging Lambda function...
       - cp src/functions/receiving-order-service/ReceivingOrderService.py receiving-order-package/
       - cd receiving-order-package
       - zip -r ../receiving-order-service-deployment-package.zip .
       - cd ..
       - mkdir -p deployment
       - mv receiving-order-service-deployment-package.zip deployment/
+  
   post_build:
     commands:
-      - echo "Deployment bucket: ${DEPLOYMENT_BUCKET}"
-      - echo "Environment type: ${ENVIRONMENT_TYPE}"
-      - aws s3 ls s3://${DEPLOYMENT_BUCKET} || echo "Bucket does not exist"
-      - echo "Uploading deployment package to S3..."
+      - echo Deployment bucket: ${DEPLOYMENT_BUCKET}
+      - echo Environment type: ${ENVIRONMENT_TYPE}
+      - aws s3 ls s3://${DEPLOYMENT_BUCKET} || echo Bucket does not exist
+      - echo Uploading deployment package to S3...
       - aws s3 cp deployment/receiving-order-service-deployment-package.zip s3://${DEPLOYMENT_BUCKET}/${ENVIRONMENT_TYPE}/receiving-order-service/deployment-package.zip --acl private
-      - echo "Confirming S3 upload:"
+      - echo Confirming S3 upload:
       - aws s3 ls s3://${DEPLOYMENT_BUCKET}/${ENVIRONMENT_TYPE}/receiving-order-service/
-      - echo "Updating Lambda function code..."
-      - aws lambda update-function-code --function-name wms-receiving-order-service-${ENVIRONMENT_TYPE} --s3-bucket ${DEPLOYMENT_BUCKET} --s3-key ${ENVIRONMENT_TYPE}/receiving-order-service/deployment-package.zip || echo "Lambda function update failed"
+      - echo Updating Lambda function code...
+      - aws lambda update-function-code --function-name wms-receiving-order-service-${ENVIRONMENT_TYPE} --s3-bucket ${DEPLOYMENT_BUCKET} --s3-key ${ENVIRONMENT_TYPE}/receiving-order-service/deployment-package.zip || echo Lambda function update failed
 
 artifacts:
   files:
