@@ -2,7 +2,6 @@ version: 0.2
 
 env:
   variables:
-    # 환경 변수 명시적으로 설정
     DEPLOYMENT_BUCKET: "wms-deployment-dev-242201288894-us-east-2-wms-storage-stack-v1"
     ENVIRONMENT_TYPE: "dev"
 
@@ -18,36 +17,24 @@ phases:
   build:
     commands:
       - echo "Packaging Lambda function..."
-      - cp src/functions/receiving-order-service/ReceivingOrderService.py lambda-package/
-      - cd lambda-package
-      - zip -r ../lambda-package.zip .
+      - cp src/functions/receiving-order-service/ReceivingOrderService.py receiving-order-package/
+      - cd receiving-order-package
+      - zip -r ../receiving-order-service-deployment-package.zip .
       - cd ..
+      - mkdir -p deployment
+      - mv receiving-order-service-deployment-package.zip deployment/
   
   post_build:
     commands:
       - echo "배포 버킷: ${DEPLOYMENT_BUCKET}"
       - echo "환경 타입: ${ENVIRONMENT_TYPE}"
-      
-      # S3 버킷 존재 확인
       - aws s3 ls s3://${DEPLOYMENT_BUCKET} || echo "버킷이 존재하지 않습니다"
-      
-      # 배포 패키지 S3 업로드
       - echo "배포 패키지 S3 업로드 중..."
       - aws s3 cp deployment/receiving-order-service-deployment-package.zip s3://${DEPLOYMENT_BUCKET}/${ENVIRONMENT_TYPE}/receiving-order-service/deployment-package.zip --acl private
-      
-      # 업로드 확인
       - echo "S3 업로드 확인:"
       - aws s3 ls s3://${DEPLOYMENT_BUCKET}/${ENVIRONMENT_TYPE}/receiving-order-service/
-      
-      # CloudFormation 템플릿 업로드
-      - echo "CloudFormation 템플릿 업로드 중..."
-      - aws s3 cp infrastructure/ s3://${DEPLOYMENT_BUCKET}/${ENVIRONMENT_TYPE}/infrastructure/ --recursive || echo "템플릿 업로드 실패"
-      
-      # Lambda 함수 업데이트 (이미 존재하는 경우)
       - echo "Lambda 함수 코드 업데이트 중..."
       - aws lambda update-function-code --function-name wms-receiving-order-service-${ENVIRONMENT_TYPE} --s3-bucket ${DEPLOYMENT_BUCKET} --s3-key ${ENVIRONMENT_TYPE}/receiving-order-service/deployment-package.zip || echo "Lambda 함수 업데이트 실패"
-      
-      - echo "빌드 프로세스 완료!"
 
 artifacts:
   files:
