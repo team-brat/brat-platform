@@ -15,9 +15,9 @@ Resources:
   # 문서 저장을 위한 S3 버킷
   DocumentBucket:
     Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
     Properties:
       BucketName: !Sub "wms-documents-${EnvironmentType}-${AWS::AccountId}-${AWS::Region}-${AWS::StackName}-v1"
-      DeletionPolicy: Retain
       VersioningConfiguration:
         Status: Enabled
       PublicAccessBlockConfiguration:
@@ -170,6 +170,7 @@ Resources:
   # 배포 패키지 저장을 위한 S3 버킷
   DeploymentBucket:
     Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
     Properties:
       BucketName: !Sub "wms-deployment-${EnvironmentType}-${AWS::AccountId}-${AWS::Region}-${AWS::StackName}-v1"
       VersioningConfiguration:
@@ -179,7 +180,7 @@ Resources:
         BlockPublicPolicy: true
         IgnorePublicAcls: true
         RestrictPublicBuckets: true
-      DeletionPolicy: Retain
+      
 
   # 웹 프론트엔드 호스팅을 위한 S3 버킷
   WebsiteBucket:
