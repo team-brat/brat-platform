@@ -32,4 +32,4 @@ phases:
 
 artifacts:
   files:
-    - deployment/receiving-order-service-deployment-package.zip
+    - '**/*'
