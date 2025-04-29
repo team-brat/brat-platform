@@ -49,6 +49,8 @@ def lambda_handler(event, context):
     """입고 주문 처리 Lambda 핸들러"""
     try:
         print(f"Received event: {json.dumps(event)}")
+        print(f"Using tables: Order={RECEIVING_ORDER_TABLE}, Item={RECEIVING_ITEM_TABLE}, History={RECEIVING_HISTORY_TABLE}, Doc={DOCUMENT_METADATA_TABLE}")
+        
         
         # API Gateway 프록시 통합
         if 'httpMethod' in event:
@@ -100,25 +102,30 @@ def lambda_handler(event, context):
             'body': json.dumps({'message': f"Error: {str(e)}"}, cls=DecimalEncoder)
         }
 
-def publish_event(event_detail, detail_type, source='wms.receiving-service'):
-    """EventBridge에 이벤트 발행"""
-    try:
-        response = events.put_events(
-            Entries=[
-                {
-                    'Source': source,
-                    'DetailType': detail_type,
-                    'Detail': json.dumps(event_detail, cls=DecimalEncoder),
-                    'EventBusName': 'default'  # Add this line
-                }
-            ]
-        )
-        print(f"Event published: {response}")
-        return response
-    except Exception as e:
-        print(f"Error publishing event: {str(e)}")
-        return None
+#def publish_event(event_detail, detail_type, source='wms.receiving-service'):
+#    """EventBridge에 이벤트 발행"""
+#    try:
+#        response = events.put_events(
+#            Entries=[
+#                {
+#                    'Source': source,
+#                    'DetailType': detail_type,
+#                    'Detail': json.dumps(event_detail, cls=DecimalEncoder),
+#                    'EventBusName': 'default'  # Add this line
+#                }
+#            ]
+#        )
+#        print(f"Event published: {response}")
+#        return response
+#    except Exception as e:
+#        print(f"Error publishing event: {str(e)}")
+#        return None
 
+def publish_event(event_detail, detail_type, source='wms.receiving-service'):
+    """EventBridge에 이벤트 발행 - 디버깅을 위해 비활성화"""
+    print(f"EventBridge 이벤트 발행 비활성화됨: {detail_type}")
+    return None  # 이벤트 발행 스킵
+    
 def upload_document(order_id, document_info, user_id):
     """문서 업로드 처리"""
     try:
