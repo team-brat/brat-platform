@@ -12,7 +12,7 @@ from decimal import Decimal
 # AWS 서비스 클라이언트
 dynamodb = boto3.resource('dynamodb')
 s3 = boto3.client('s3')
-events = boto3.client('events')
+events = boto3.client('events', region_name='us-east-2')
 
 # 환경 변수
 RECEIVING_ORDER_TABLE = os.environ.get('RECEIVING_ORDER_TABLE', 'wms-receiving-orders-dev')
@@ -108,7 +108,8 @@ def publish_event(event_detail, detail_type, source='wms.receiving-service'):
                 {
                     'Source': source,
                     'DetailType': detail_type,
-                    'Detail': json.dumps(event_detail, cls=DecimalEncoder)
+                    'Detail': json.dumps(event_detail, cls=DecimalEncoder),
+                    'EventBusName': 'default'  # Add this line
                 }
             ]
         )
