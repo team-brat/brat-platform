@@ -5,6 +5,7 @@ import uuid
 import base64
 from datetime import datetime
 from decimal import Decimal
+from boto3.dynamodb.conditions import Attr, And
 
 # AWS 서비스 클라이언트
 dynamodb = boto3.resource('dynamodb')
@@ -353,7 +354,7 @@ def create_receiving_order(event):
             'body': json.dumps({'message': f"입고 주문 생성 중 오류가 발생했습니다: {str(e)}"}, cls=DecimalEncoder)
         }
 
-def get_receiving_orders(event):
+
     """입고 주문 목록 조회"""
     try:
         # 파라미터 파싱
@@ -463,6 +464,113 @@ def get_receiving_orders(event):
                     'to': max(dates)
                 }
         
+        return {
+            'statusCode': 200,
+            'headers': COMMON_HEADERS,
+            'body': json.dumps({
+                'orders': formatted_items,
+                'count': len(formatted_items),
+                'meta': meta
+            }, cls=DecimalEncoder)
+        }
+    except Exception as e:
+        print(f"Error getting receiving orders: {str(e)}")
+        return {
+            'statusCode': 500,
+            'headers': COMMON_HEADERS,
+            'body': json.dumps({'message': f"Error getting receiving orders: {str(e)}"}, cls=DecimalEncoder)
+        }
+
+def get_receiving_orders(event):
+    """입고 주문 목록 조회"""
+    try:
+        # 파라미터 파싱
+        query_params = event.get('queryStringParameters', {}) or {}
+        supplier_id = query_params.get('supplier_id')
+        status = query_params.get('status')
+        from_date = query_params.get('from_date')
+        to_date = query_params.get('to_date')
+        
+        table = dynamodb.Table(RECEIVING_ORDER_TABLE)
+        
+        # 필터 표현식 생성
+        filter_expressions = []
+
+        # 공급업체 필터
+        if supplier_id:
+            filter_expressions.append(Attr('supplier_id').eq(supplier_id))
+
+        # 상태 필터
+        if status:
+            filter_expressions.append(Attr('status').eq(status))
+
+        # 날짜 범위 필터
+        if from_date:
+            try:
+                from_timestamp = int(datetime.fromisoformat(from_date).timestamp())
+                filter_expressions.append(Attr('scheduled_date').gte(from_timestamp))
+            except ValueError:
+                return {
+                    'statusCode': 400,
+                    'headers': COMMON_HEADERS,
+                    'body': json.dumps({'message': 'Invalid date format. Use ISO format (YYYY-MM-DD)'}, cls=DecimalEncoder)
+                }
+
+        if to_date:
+            try:
+                to_timestamp = int(datetime.fromisoformat(to_date).timestamp())
+                filter_expressions.append(Attr('scheduled_date').lte(to_timestamp))
+            except ValueError:
+                return {
+                    'statusCode': 400,
+                    'headers': COMMON_HEADERS,
+                    'body': json.dumps({'message': 'Invalid date format. Use ISO format (YYYY-MM-DD)'}, cls=DecimalEncoder)
+                }
+
+        # DynamoDB 쿼리 실행
+        if filter_expressions:
+            response = table.scan(
+                FilterExpression=And(*filter_expressions)
+            )
+        else:
+            response = table.scan()
+        
+        items = response.get('Items', [])
+
+        # 결과 포맷팅
+        formatted_items = []
+        for item in items:
+            formatted_item = {
+                'order_id': item.get('order_id'),
+                'supplier_name': item.get('supplier_name'),
+                'supplier_id': item.get('supplier_id'),
+                'sku_name': item.get('sku_name'),
+                'sku_id': item.get('sku_number'),
+                'serial_barcode': item.get('barcode', ''),
+                'status': item.get('status', 'IN_PROCESS'),
+                'created_at': item.get('created_at'),
+                'grn_number': item.get('grn_number', '')
+            }
+
+            if 'scheduled_date' in item:
+                formatted_item['received_date'] = datetime.fromtimestamp(item['scheduled_date']).strftime('%Y-%m-%d')
+            if 'created_at' in item:
+                formatted_item['created_at_iso'] = datetime.fromtimestamp(item['created_at']).isoformat()
+
+            formatted_items.append(formatted_item)
+
+        # 날짜 기준 내림차순 정렬
+        formatted_items.sort(key=lambda x: x.get('received_date', ''), reverse=True)
+
+        meta = {}
+        if formatted_items:
+            dates = [item.get('received_date') for item in formatted_items if 'received_date' in item]
+            if dates:
+                meta['date_range'] = {
+                    'from': min(dates),
+                    'to': max(dates)
+                }
+
         return {
             'statusCode': 200,
             'headers': COMMON_HEADERS,
