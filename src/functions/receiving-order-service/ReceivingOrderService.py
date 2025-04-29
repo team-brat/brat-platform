@@ -338,65 +338,10 @@ def create_receiving_order(event):
         }
 
 def get_receiving_orders(event):
-    """입고 주문 목록 조회"""
+    """입고 주문 목록 전체 조회 (필터 없이)"""
     try:
-        # 파라미터 파싱
-        query_params = event.get('queryStringParameters', {}) or {}
-        supplier_id = query_params.get('supplier_id')
-        status = query_params.get('status')
-        from_date = query_params.get('from_date')
-        to_date = query_params.get('to_date')
-        
         table = dynamodb.Table(RECEIVING_ORDER_TABLE)
-        
-        # 필터 표현식 생성
-        filter_expressions = []
-
-        # 공급업체 필터
-        if supplier_id:
-            filter_expressions.append(Attr('supplier_id').eq(supplier_id))
-
-        # 상태 필터
-        if status:
-            filter_expressions.append(Attr('status').eq(status))
-
-        # 날짜 범위 필터
-        if from_date:
-            try:
-                from_timestamp = int(datetime.fromisoformat(from_date).timestamp())
-                filter_expressions.append(Attr('scheduled_date').gte(from_timestamp))
-            except ValueError:
-                return {
-                    'statusCode': 400,
-                    'headers': COMMON_HEADERS,
-                    'body': json.dumps({'message': 'Invalid date format. Use ISO format (YYYY-MM-DD)'}, cls=DecimalEncoder)
-                }
-
-        if to_date:
-            try:
-                to_timestamp = int(datetime.fromisoformat(to_date).timestamp())
-                filter_expressions.append(Attr('scheduled_date').lte(to_timestamp))
-            except ValueError:
-                return {
-                    'statusCode': 400,
-                    'headers': COMMON_HEADERS,
-                    'body': json.dumps({'message': 'Invalid date format. Use ISO format (YYYY-MM-DD)'}, cls=DecimalEncoder)
-                }
-
-        # DynamoDB 쿼리 실행
-        if filter_expressions:
-            if len(filter_expressions) == 1:
-                filter_expression = filter_expressions[0]
-            else:
-                filter_expression = And(*filter_expressions)
-
-            response = table.scan(
-                FilterExpression=filter_expression
-            )
-        else:
-            response = table.scan()
-
-        
+        response = table.scan()  # ✅ 조건 없이 전체 조회
         items = response.get('Items', [])
 
         # 결과 포맷팅
@@ -421,9 +366,10 @@ def get_receiving_orders(event):
 
             formatted_items.append(formatted_item)
 
-        # 날짜 기준 내림차순 정렬
+        # 정렬
         formatted_items.sort(key=lambda x: x.get('received_date', ''), reverse=True)
 
+        # 메타데이터 구성
         meta = {}
         if formatted_items:
             dates = [item.get('received_date') for item in formatted_items if 'received_date' in item]
