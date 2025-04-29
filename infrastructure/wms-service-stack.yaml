@@ -10,6 +10,10 @@ Parameters:
       - test
       - prod
     Description: Environment type
+  DeploymentBucket:
+    Type: String
+    Description: S3 bucket for Lambda deployment packages
+
 
 Resources:
   # ------ IAM 역할 정의 ------
@@ -37,20 +41,14 @@ Resources:
     Properties:
       FunctionName: !Sub "wms-receiving-order-service-${EnvironmentType}"
       Runtime: python3.9
-      Handler: index.handler
+      Handler: ReceivingOrderService.lambda_handler
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 30
       MemorySize: 256
       Code:
-        ZipFile: |
-          def handler(event, context):
-              return {
-                  'statusCode': 200,
-                  'body': 'Hello from Lambda'
-              }
-      Environment:
-        Variables:
-          ENVIRONMENT_TYPE: !Ref EnvironmentType
+        S3Bucket: !Ref DeploymentBucket
+        S3Key: !Sub "${EnvironmentType}/receiving-order-service/deployment-package.zip"
+
 
   # ------ EventBridge 규칙 정의 ------
   # 주문 생성 이벤트 규칙

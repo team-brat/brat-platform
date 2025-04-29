@@ -13,8 +13,6 @@ phases:
     commands:
       - echo Packaging Lambda functions...
       - mkdir -p deployment
-      
-      # Receiving Order Service
       - cp src/functions/receiving-order-service/ReceivingOrderService.py ./receiving-order-package/
       - cd receiving-order-package
       - zip -r ../deployment/receiving-order-service-deployment-package.zip .
@@ -23,11 +21,17 @@ phases:
   post_build:
     commands:
       - ls -la deployment/
-      - aws s3 cp deployment/receiving-order-service-deployment-package.zip s3://wms-deployment-dev-242201288894/dev/receiving-order-service/deployment-package.zip --acl private || echo "Receiving order service upload failed"
+      - |
+        aws s3 cp deployment/receiving-order-service-deployment-package.zip \
+        s3://${DEPLOYMENT_BUCKET}/${ENVIRONMENT_TYPE}/receiving-order-service/deployment-package.zip \
+        --acl private || echo "Receiving order service upload failed"
       - echo "Files uploaded to S3"
-      
-      # Lambda 함수 업데이트
-      - aws lambda update-function-code --function-name wms-receiving-order-service-dev --s3-bucket wms-deployment-dev-242201288894 --s3-key dev/receiving-order-service/deployment-package.zip || echo "Receiving order service update failed - function may not exist yet"
+      - |
+        aws lambda update-function-code \
+        --function-name wms-receiving-order-service-${ENVIRONMENT_TYPE} \
+        --s3-bucket ${DEPLOYMENT_BUCKET} \
+        --s3-key ${ENVIRONMENT_TYPE}/receiving-order-service/deployment-package.zip \
+        || echo "Receiving order service update failed - function may not exist yet"
       - echo "Lambda functions updated if they exist"
 
 artifacts:
