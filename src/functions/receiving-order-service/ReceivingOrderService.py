@@ -15,9 +15,9 @@ s3 = boto3.client('s3')
 events = boto3.client('events')
 
 # 환경 변수
-RECEIVING_ORDER_TABLE = os.environ.get('RECEIVING_ORDER_TABLE')
-RECEIVING_ITEM_TABLE = os.environ.get('RECEIVING_ITEM_TABLE')
-RECEIVING_HISTORY_TABLE = os.environ.get('RECEIVING_HISTORY_TABLE')
+RECEIVING_ORDER_TABLE = os.environ.get('RECEIVING_ORDER_TABLE', 'wms-receiving-orders-dev')
+RECEIVING_ITEM_TABLE = os.environ.get('RECEIVING_ITEM_TABLE', 'wms-receiving-items-dev')
+RECEIVING_HISTORY_TABLE = os.environ.get('RECEIVING_HISTORY_TABLE', 'wms-receiving-history-dev')
 DOCUMENT_METADATA_TABLE = os.environ.get('DOCUMENT_METADATA_TABLE', 'wms-document-metadata-dev')
 DOCUMENT_BUCKET = os.environ.get('DOCUMENT_BUCKET', 'wms-documents-dev-242201288894')
 
