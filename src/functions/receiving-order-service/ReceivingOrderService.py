@@ -10,16 +10,17 @@ from boto3.dynamodb.conditions import Attr
 from decimal import Decimal
 
 # AWS 서비스 클라이언트
-dynamodb = boto3.resource('dynamodb')
-s3 = boto3.client('s3')
-events = boto3.client('events', region_name='us-east-2')
+region_name = 'us-east-2'
+dynamodb = boto3.resource('dynamodb', region_name=region_name)
+s3 = boto3.client('s3', region_name=region_name)
+events = boto3.client('events', region_name=region_name)
 
-# 환경 변수
-RECEIVING_ORDER_TABLE = os.environ.get('RECEIVING_ORDER_TABLE', 'wms-receiving-orders-dev-wms-storage-stack')
-RECEIVING_ITEM_TABLE = os.environ.get('RECEIVING_ITEM_TABLE', 'wms-receiving-items-dev-wms-storage-stack')
-RECEIVING_HISTORY_TABLE = os.environ.get('RECEIVING_HISTORY_TABLE', 'wms-receiving-history-dev-wms-storage-stack')
-DOCUMENT_METADATA_TABLE = os.environ.get('DOCUMENT_METADATA_TABLE', 'wms-document-metadata-dev-wms-storage-stack')
-DOCUMENT_BUCKET = os.environ.get('DOCUMENT_BUCKET', 'wms-documents-dev-242201288894-wms-storage-stack ')
+# 환경 변수 - 테이블 풀네임 사용
+RECEIVING_ORDER_TABLE = 'wms-receiving-orders-dev-wms-storage-stack'
+RECEIVING_ITEM_TABLE = 'wms-receiving-items-dev-wms-storage-stack'
+RECEIVING_HISTORY_TABLE = 'wms-receiving-history-dev-wms-storage-stack'
+DOCUMENT_METADATA_TABLE = 'wms-document-metadata-dev-wms-storage-stack'
+DOCUMENT_BUCKET = os.environ.get('DOCUMENT_BUCKET', 'wms-documents-dev-242201288894-wms-storage-stack')
 
 # 표준 응답 헤더
 COMMON_HEADERS = {
@@ -125,7 +126,7 @@ def publish_event(event_detail, detail_type, source='wms.receiving-service'):
     """EventBridge에 이벤트 발행 - 디버깅을 위해 비활성화"""
     print(f"EventBridge 이벤트 발행 비활성화됨: {detail_type}")
     return None  # 이벤트 발행 스킵
-    
+
 def upload_document(order_id, document_info, user_id):
     """문서 업로드 처리"""
     try:
