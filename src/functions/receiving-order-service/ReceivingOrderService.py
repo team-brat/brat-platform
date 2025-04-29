@@ -385,11 +385,17 @@ def get_receiving_orders(event):
 
         # DynamoDB 쿼리 실행
         if filter_expressions:
+            if len(filter_expressions) == 1:
+                filter_expression = filter_expressions[0]
+            else:
+                filter_expression = And(*filter_expressions)
+
             response = table.scan(
-                FilterExpression=And(*filter_expressions)
+                FilterExpression=filter_expression
             )
         else:
             response = table.scan()
+
         
         items = response.get('Items', [])
 
